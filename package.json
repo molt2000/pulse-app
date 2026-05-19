@@ -6,7 +6,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "typescript": "file:...",
-    "vite": "file:..."
+    "typescript": "5.8.3",
+    "vite": "6.3.5"
   }
 }
