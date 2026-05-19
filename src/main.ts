@@ -384,5 +384,6 @@ document.body.appendChild(el(
 )).addEventListener('click', togglePanel);
 
 // ─── Boot ──────────────────────────────────────────────────────────────────
+document.title = 'Pulse';
 resize();
 requestAnimationFrame(frame);
