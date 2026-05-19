@@ -100,7 +100,7 @@ attribute vec2 aPos;
 varying vec2 vUV;
 void main(){ vUV=aPos*0.5+0.5; gl_Position=vec4(aPos,0.0,1.0); }`;
 
-// ─── Friend orb shader — clean glowing pulse orb, no smoke/clouds ───────────
+// ─── Friend orb shader — rich round glowing blob with white core ────────────
 const FRAG_FRIEND=`
 precision mediump float;
 uniform float uTime;
@@ -116,46 +116,48 @@ void main(){
   float asp=uRes.x/uRes.y;
   vec2 uv=vUV-uCenter;
   uv.x*=asp;
-  float dist=length(uv);
-  float normD=dist/uRadius;
-  if(normD>2.5){gl_FragColor=vec4(0.0);return;}
+  float r=length(uv)/uRadius;
+  if(r>2.8){gl_FragColor=vec4(0.0);return;}
 
-  // smooth breathing pulse
-  float breath=1.0+sin(uTime*mix(0.8,1.6,uDensity)+uSeed*6.2832)*0.045;
-  float r=normD/breath;
+  // gentle breathing — intensity scales with density
+  float breath=sin(uTime*mix(0.5,1.3,uDensity)+uSeed*6.2832)*0.035;
+  r=r/(1.0+breath);
 
-  // secondary faster flicker for liveliness
-  float flicker=1.0+sin(uTime*mix(2.5,4.0,uDensity)+uSeed*3.7)*0.018;
-  r=r/flicker;
+  // density drives brightness — 90% person is clearly brighter than 20%
+  float D=uDensity; // 0.0=far/dim  1.0=close/bright
 
-  // 1. outer halo — wide, soft
-  float halo=exp(-r*mix(1.2,1.8,uDensity))*mix(0.45,0.75,uDensity);
+  // 1. outer halo — wide atmospheric glow, scales hard with D
+  float halo=exp(-r*mix(1.2,0.7,D))*mix(0.06,0.55,D*D);
 
-  // 2. mid glow — tighter coloured body
-  float glow=exp(-r*r*mix(5.0,9.0,uDensity))*mix(0.6,1.0,uDensity);
+  // 2. coloured body — Gaussian, much brighter at high D
+  float body=exp(-r*r*mix(6.0,3.5,D))*mix(0.10,0.80,D);
 
-  // 3. bright white core
-  float core=exp(-r*r*mix(28.0,55.0,uDensity))*mix(0.5,1.1,uDensity);
+  // 3. bright inner core — only visible for close friends (D>0.5)
+  float core=exp(-r*r*mix(60.0,18.0,D))*mix(0.0,0.90,smoothstep(0.3,0.9,D));
 
-  // 4. subtle crisp ring at orb edge (pulse ring)
-  float ring=exp(-pow(r-0.62,2.0)*mix(30.0,55.0,uDensity))*0.25*uDensity;
+  // 4. rim ring at orb edge
+  float rim=exp(-pow(r-0.50,2.0)*mix(20.0,12.0,D))*mix(0.05,0.22,D);
 
-  // colour: halo=uCA, glow blends CA->CB outward, ring accent=uCC
-  vec3 col = uCA*halo
-           + mix(uCA,uCB,smoothstep(0.0,1.0,r))*glow
-           + uCC*ring
+  // centre fade — keep r<0.35 dim so profile pic sits cleanly on top
+  float centreFade=smoothstep(0.0,0.40,r);
+
+  vec3 col = uCA*(halo+rim)
+           + mix(uCA,uCB,smoothstep(0.0,0.9,r))*body
            + vec3(1.0)*core;
+  col *= centreFade;
 
-  // tone-map + gamma
-  col=col/(1.0+col);
-  col=pow(max(col,vec3(0.0)),vec3(0.4545));
+  // tone-map — close friends allowed to bloom, distant stay soft
+  float exposure=mix(0.7,1.4,D);
+  col=col*exposure/(0.5+col*exposure);
+  col=pow(max(col,vec3(0.0)),vec3(0.48));
 
-  float a=(halo*0.7 + glow*mix(0.5,0.95,uDensity) + core*0.9 + ring*0.6)
-          *smoothstep(2.5,0.0,r);
+  float a=(halo*0.6 + body*mix(0.2,0.85,D) + core*mix(0.0,0.95,D) + rim*0.4)
+          *centreFade
+          *smoothstep(2.8,0.1,r);
   gl_FragColor=vec4(col,clamp(a,0.0,1.0));
 }`;
 
-// YOU uses the same FRAG_FRIEND shader
+// YOU uses FRAG_FRIEND shader — no separate shader needed
 
 // ─── Blit ──────────────────────────────────────────────────────────────────
 const BLIT=`
@@ -293,7 +295,7 @@ document.head.appendChild(styleEl);
 document.body.appendChild(el(
   'position:fixed;top:18px;left:50%;transform:translateX(-50%);'+
   'color:rgba(255,255,255,0.22);font:10px system-ui;letter-spacing:5px;pointer-events:none;z-index:10',
-  'PULSE'
+  'AMBIENT PRESENCE'
 ));
 
 // YOU label — centered on the YOU orb (screen center)
@@ -325,17 +327,9 @@ function buildLabels(){
 
   const activeFriends=friends.filter(f=>f.active);
 
-  // Raw positions = orb centers in CSS px
-  const positions:LblPos[]=activeFriends.map(f=>{
-    const {x,y}=orbPx(f.bearing);
-    return {x,y};
-  });
-
-  // Resolve overlaps so no two labels stack
-  resolveCollisions(positions);
-
+  // Pin labels exactly to orb centers — no collision offset
   activeFriends.forEach((f,idx)=>{
-    const pos=positions[idx];
+    const pos=orbPx(f.bearing);
     const c=PAL[f.colorIdx].a;
     const rgb=`rgb(${~~(c[0]*255)},${~~(c[1]*255)},${~~(c[2]*255)})`;
 
