@@ -26,6 +26,14 @@ const FRIEND_RADIUS = {
   desktopDensity: 0.032,
 };
 
+const MERGE_DISTANCE_METERS = 10;
+const MAX_MERGE_PULL = 0.68;
+const MERGE_EASE = 0.025;
+const MIN_MERGE_SEPARATION = {
+  mobile: 48,
+  desktop: 72,
+};
+
 export class PulseRenderer {
   private readonly canvas: HTMLCanvasElement;
   private readonly overlay: HTMLDivElement;
@@ -35,6 +43,8 @@ export class PulseRenderer {
   private readonly quadBuffer: WebGLBuffer;
   private readonly labels = new Map<number, LabelParts>();
   private readonly positions = new Map<number, RenderPoint>();
+  private readonly visualPositions = new Map<number, RenderPoint>();
+  private readonly mergeLevels = new Map<number, number>();
   private readonly isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
   private readonly dpr = Math.min(window.devicePixelRatio || 1, this.isMobile ? 1 : 1.5);
 
@@ -157,25 +167,11 @@ export class PulseRenderer {
     for (const friend of this.friends) {
       if (!friend.active) continue;
 
-      const target = friendScreenPosition(
-        friend.bearing,
-        this.getViewport(),
-      );
-
-      const current = this.smoothPosition(friend.id, target);
-
-      const float = this.friendFloat(
-        friend.id,
-        time,
-        friend.density,
-      );
+      const point = this.visualFriendPoint(friend, time);
 
       this.drawOrb(
         time,
-        {
-          x: current.x + float.x,
-          y: current.y + float.y,
-        },
+        point,
         friend.density,
         friend.id * 4.93 + 1.7,
         toneFor(friend.colorIdx),
@@ -194,6 +190,73 @@ export class PulseRenderer {
     }
 
     return FRIEND_RADIUS.desktopBase + density * FRIEND_RADIUS.desktopDensity;
+  }
+
+  private visualFriendPoint(friend: Friend, time: number): RenderPoint {
+    const target = friendScreenPosition(
+      friend.bearing,
+      this.getViewport(),
+    );
+
+    const current = this.smoothPosition(friend.id, target);
+    const float = this.friendFloat(friend.id, time, friend.density);
+    const merged = this.applyUserMerge(friend, {
+      x: current.x + float.x,
+      y: current.y + float.y,
+    });
+
+    this.visualPositions.set(friend.id, merged);
+
+    return merged;
+  }
+
+  private applyUserMerge(friend: Friend, point: RenderPoint): RenderPoint {
+    const user = this.userPoint();
+    const meters = proximityMeters(friend.density);
+    const targetLevel = this.targetMergeLevel(meters);
+    const previous = this.mergeLevels.get(friend.id) ?? 0;
+    const level = previous + (targetLevel - previous) * MERGE_EASE;
+
+    this.mergeLevels.set(friend.id, level);
+
+    if (level <= 0.001) {
+      return point;
+    }
+
+    const dx = user.x - point.x;
+    const dy = user.y - point.y;
+    const distance = Math.hypot(dx, dy);
+    const minSeparation = this.isMobile
+      ? MIN_MERGE_SEPARATION.mobile
+      : MIN_MERGE_SEPARATION.desktop;
+    const distanceCappedLevel = Math.max(
+      0,
+      1 - minSeparation / Math.max(distance, minSeparation),
+    );
+    const pull = Math.min(level, distanceCappedLevel);
+
+    return {
+      x: point.x + dx * pull,
+      y: point.y + dy * pull,
+    };
+  }
+
+  private targetMergeLevel(meters: number): number {
+    if (meters > MERGE_DISTANCE_METERS) {
+      return 0;
+    }
+
+    const closeness = 1 - meters / MERGE_DISTANCE_METERS;
+    const shaped = smoothstep(closeness);
+
+    return (0.18 + shaped * 0.82) * MAX_MERGE_PULL;
+  }
+
+  private userPoint(): RenderPoint {
+    return {
+      x: this.width / 2,
+      y: this.height / 2,
+    };
   }
 
   private drawOrb(
@@ -302,14 +365,8 @@ export class PulseRenderer {
       if (!parts) continue;
 
       const position =
-        this.positions.get(friend.id) ??
-        friendScreenPosition(friend.bearing, viewport);
-
-      const float = this.friendFloat(
-        friend.id,
-        time,
-        friend.density,
-      );
+        this.visualPositions.get(friend.id) ??
+        this.visualFriendPoint(friend, time);
 
       const scale =
         0.96 +
@@ -318,8 +375,8 @@ export class PulseRenderer {
 
       parts.root.style.transform = `
         translate3d(
-          ${position.x + float.x}px,
-          ${position.y + float.y}px,
+          ${position.x}px,
+          ${position.y}px,
           0
         )
         translate(-50%, -50%)
@@ -519,6 +576,16 @@ export class PulseRenderer {
       0,
     );
   }
+}
+
+function proximityMeters(density: number): number {
+  return Math.round((1 - Math.max(0, Math.min(1, density))) * 1000);
+}
+
+function smoothstep(value: number): number {
+  const x = Math.max(0, Math.min(1, value));
+
+  return x * x * (3 - 2 * x);
 }
 
 let stylesInjected = false;
