@@ -14,6 +14,18 @@ interface LabelParts {
   meta: HTMLDivElement;
 }
 
+const USER_RADIUS = {
+  mobile: 0.085,
+  desktop: 0.13,
+};
+
+const FRIEND_RADIUS = {
+  mobileBase: 0.052,
+  mobileDensity: 0.02,
+  desktopBase: 0.078,
+  desktopDensity: 0.032,
+};
+
 export class PulseRenderer {
   private readonly canvas: HTMLCanvasElement;
   private readonly overlay: HTMLDivElement;
@@ -139,7 +151,7 @@ export class PulseRenderer {
       0.72,
       0.3,
       theme.youTone,
-      0.28,
+      this.userRadius(),
     );
 
     for (const friend of this.friends) {
@@ -167,9 +179,21 @@ export class PulseRenderer {
         friend.density,
         friend.id * 4.93 + 1.7,
         toneFor(friend.colorIdx),
-        0.22 + friend.density * 0.055,
+        this.friendRadius(friend.density),
       );
     }
+  }
+
+  private userRadius(): number {
+    return this.isMobile ? USER_RADIUS.mobile : USER_RADIUS.desktop;
+  }
+
+  private friendRadius(density: number): number {
+    if (this.isMobile) {
+      return FRIEND_RADIUS.mobileBase + density * FRIEND_RADIUS.mobileDensity;
+    }
+
+    return FRIEND_RADIUS.desktopBase + density * FRIEND_RADIUS.desktopDensity;
   }
 
   private drawOrb(
