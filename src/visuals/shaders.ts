@@ -1,150 +1,216 @@
 export const VERTEX_SHADER = `
-attribute vec2 aPos;
-varying vec2 vUV;
+  attribute vec2 aPos;
 
-void main() {
-  vUV = aPos * 0.5 + 0.5;
-  gl_Position = vec4(aPos, 0.0, 1.0);
-}`;
+  varying vec2 vUV;
+
+  void main() {
+    vUV = aPos * 0.5 + 0.5;
+    gl_Position = vec4(aPos, 0.0, 1.0);
+  }
+`;
 
 export const BACKGROUND_SHADER = `
-precision mediump float;
+  precision mediump float;
 
-uniform float uTime;
-uniform vec2 uRes;
-uniform vec3 uBase;
-uniform vec3 uUpper;
-uniform vec3 uWarmth;
-uniform vec3 uDepth;
-varying vec2 vUV;
+  uniform float uTime;
+  uniform vec2 uRes;
+  uniform vec3 uBase;
+  uniform vec3 uUpper;
+  uniform vec3 uWarmth;
+  uniform vec3 uDepth;
 
-float softCircle(vec2 p, vec2 c, float r, float falloff) {
-  float d = length(p - c) / r;
-  return exp(-pow(d, falloff));
-}
+  varying vec2 vUV;
 
-void main() {
-  vec2 uv = vUV;
-  vec2 p = uv - 0.5;
-  p.x *= uRes.x / uRes.y;
+  float softCircle(vec2 p, vec2 c, float r, float falloff) {
+    float d = length(p - c) / r;
+    return exp(-pow(d, falloff));
+  }
 
-  float vignette = smoothstep(0.92, 0.18, length(p));
-  float vertical = smoothstep(0.0, 1.0, uv.y);
-  float breath = sin(uTime * 0.12) * 0.5 + 0.5;
+  void main() {
+    vec2 uv = vUV;
+    vec2 p = uv - 0.5;
+    p.x *= uRes.x / uRes.y;
 
-  vec3 col = mix(uBase, uUpper, vertical * 0.55);
-  col += uWarmth * softCircle(p, vec2(-0.32, -0.18), 0.88 + breath * 0.04, 2.2) * 0.34;
-  col += uDepth * softCircle(p, vec2(0.28, 0.22), 0.72, 2.0) * 0.48;
-  col += vec3(0.018, 0.02, 0.022) * softCircle(p, vec2(0.0, 0.02), 0.42, 2.0);
-  col *= mix(0.42, 1.0, vignette);
+    float vignette = smoothstep(0.92, 0.18, length(p));
+    float vertical = smoothstep(0.0, 1.0, uv.y);
+    float breath = sin(uTime * 0.12) * 0.5 + 0.5;
 
-  gl_FragColor = vec4(col, 1.0);
-}`;
+    vec3 col = mix(uBase, uUpper, vertical * 0.35);
+    col += uWarmth * softCircle(p, vec2(-0.32, -0.18), 0.88 + breath * 0.04, 2.2) * 0.08;
+    col += uDepth * softCircle(p, vec2(0.28, 0.22), 0.72, 2.0) * 0.16;
+
+    col *= mix(0.18, 0.85, vignette);
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
 
 export const ORB_SHADER = `
-precision mediump float;
+  precision mediump float;
 
-uniform float uTime;
-uniform float uSeed;
-uniform float uDensity;
-uniform float uRadius;
-uniform vec2 uCenter;
-uniform vec2 uRes;
-uniform vec3 uCore;
-uniform vec3 uGlow;
-uniform vec3 uRim;
-varying vec2 vUV;
+  uniform float uTime;
+  uniform float uSeed;
+  uniform float uDensity;
+  uniform float uRadius;
+  uniform vec2 uCenter;
+  uniform vec2 uRes;
+  uniform vec3 uCore;
+  uniform vec3 uGlow;
+  uniform vec3 uRim;
 
-float dropletField(vec2 p, vec2 c, float r) {
-  vec2 d = p - c;
-  return (r * r) / (dot(d, d) + 0.0018);
-}
+  varying vec2 vUV;
 
-vec2 dropletGradient(vec2 p, vec2 c, float r) {
-  vec2 d = p - c;
-  float v = dot(d, d) + 0.0018;
-  return -2.0 * r * r * d / (v * v);
-}
+  const float EPS = 0.0012;
+  const int ITR = 22;
+  const int TRAIL_LENGTH = 10;
 
-void main() {
-  float asp = uRes.x / uRes.y;
-  vec2 uv = vUV - uCenter;
-  uv.x *= asp;
-
-  float dist = length(uv) / uRadius;
-  if (dist > 2.8) {
-    gl_FragColor = vec4(0.0);
-    return;
+  vec3 translate(vec3 p, vec3 t) {
+    return p - t;
   }
 
-  float density = clamp(uDensity, 0.0, 1.0);
-  float breath = sin(uTime * mix(0.26, 0.48, density) + uSeed) * 0.035;
-  float wobble = sin(uTime * 0.19 + uSeed * 1.37) * 0.018;
-  vec2 p = uv / (uRadius * (1.0 + breath));
-
-  vec2 c0 = vec2(0.0);
-  vec2 c1 = vec2(
-    sin(uTime * 0.21 + uSeed) * 0.095,
-    cos(uTime * 0.18 + uSeed * 1.4) * 0.075
-  );
-  vec2 c2 = vec2(
-    -0.13 + sin(uTime * 0.16 + uSeed * 0.8) * 0.035,
-    0.05 + cos(uTime * 0.13 + uSeed * 2.1) * 0.035
-  );
-  vec2 c3 = vec2(
-    0.1 + cos(uTime * 0.15 + uSeed * 1.9) * 0.04,
-    -0.08 + sin(uTime * 0.17 + uSeed * 1.2) * 0.04
-  );
-
-  float f = 0.0;
-  f += dropletField(p, c0, 0.74 + density * 0.12 + wobble);
-  f += dropletField(p, c1, 0.34 + density * 0.08);
-  f += dropletField(p, c2, 0.22 + density * 0.06);
-  f += dropletField(p, c3, 0.18 + density * 0.05);
-
-  float threshold = 0.92;
-  float body = smoothstep(threshold - 0.045, threshold + 0.025, f);
-  float outer = smoothstep(threshold - 0.42, threshold + 0.02, f);
-  if (outer < 0.01) {
-    gl_FragColor = vec4(0.0);
-    return;
+  float sdSphere(vec3 p, float s) {
+    return length(p) - s;
   }
 
-  vec2 grad = vec2(0.0);
-  grad += dropletGradient(p, c0, 0.74 + density * 0.12 + wobble);
-  grad += dropletGradient(p, c1, 0.34 + density * 0.08);
-  grad += dropletGradient(p, c2, 0.22 + density * 0.06);
-  grad += dropletGradient(p, c3, 0.18 + density * 0.05);
+  float smoothMin(float d1, float d2, float k) {
+    float h = exp(-k * d1) + exp(-k * d2);
+    return -log(h) / k;
+  }
 
-  vec2 n2 = normalize(grad + vec2(0.0001));
-  float z = sqrt(clamp(1.0 - dot(n2, n2) * 0.22, 0.0, 1.0));
-  vec3 normal = normalize(vec3(n2 * 0.52, z));
-  vec3 light = normalize(vec3(-0.42, 0.58, 0.70));
-  vec3 view = vec3(0.0, 0.0, 1.0);
-  vec3 halfVec = normalize(light + view);
+  float rnd3D(vec3 p) {
+    return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453123);
+  }
 
-  float diffuse = max(dot(normal, light), 0.0);
-  float spec = pow(max(dot(normal, halfVec), 0.0), 70.0) * (0.42 + density * 0.42);
-  float microSpec = pow(max(dot(normal, normalize(vec3(0.58, -0.25, 0.78))), 0.0), 140.0) * 0.16;
-  float fresnel = pow(1.0 - max(dot(normal, view), 0.0), 2.3);
-  float rim = fresnel * body;
-  float innerShadow = smoothstep(2.7, 0.95, f) * body;
-  float caustic = sin((p.x - p.y) * 7.0 + uSeed + uTime * 0.16) * 0.5 + 0.5;
-  caustic *= smoothstep(0.96, 2.1, f) * body * 0.08;
+  float noise3D(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    float a000 = rnd3D(i);
+    float a100 = rnd3D(i + vec3(1.0, 0.0, 0.0));
+    float a010 = rnd3D(i + vec3(0.0, 1.0, 0.0));
+    float a110 = rnd3D(i + vec3(1.0, 1.0, 0.0));
+    float a001 = rnd3D(i + vec3(0.0, 0.0, 1.0));
+    float a101 = rnd3D(i + vec3(1.0, 0.0, 1.0));
+    float a011 = rnd3D(i + vec3(0.0, 1.0, 1.0));
+    float a111 = rnd3D(i + vec3(1.0, 1.0, 1.0));
+    vec3 u = f * f * (3.0 - 2.0 * f);
 
-  vec3 glass = mix(uGlow * 0.52, uCore, 0.34 + diffuse * 0.28);
-  glass += uRim * rim * 0.48;
-  glass += vec3(1.0, 0.96, 0.86) * (spec + microSpec);
-  glass += uGlow * caustic;
-  glass *= mix(0.68, 1.12, innerShadow);
+    float k0 = a000;
+    float k1 = a100 - a000;
+    float k2 = a010 - a000;
+    float k3 = a001 - a000;
+    float k4 = a000 - a100 - a010 + a110;
+    float k5 = a000 - a010 - a001 + a011;
+    float k6 = a000 - a100 - a001 + a101;
+    float k7 = -a000 + a100 + a010 - a110 + a001 - a101 - a011 + a111;
+    return k0 + k1 * u.x + k2 * u.y + k3 * u.z + k4 * u.x * u.y + k5 * u.y * u.z + k6 * u.z * u.x + k7 * u.x * u.y * u.z;
+  }
 
-  float aura = exp(-dist * mix(1.8, 2.45, density)) * (0.035 + density * 0.08);
-  vec3 col = glass * body + uGlow * aura;
-  col = col / (vec3(0.72) + col);
-  col = pow(max(col, vec3(0.0)), vec3(0.72));
+  float mapDroplet(vec3 p) {
+    float density = clamp(uDensity, 0.0, 1.0);
+    float k = 7.0;
+    float d = 1e5;
+    float phase = uTime * 0.18 + uSeed;
+    vec2 axis = normalize(vec2(cos(uSeed * 1.91 + uTime * 0.08), sin(uSeed * 1.37 + uTime * 0.07)));
+    vec2 side = vec2(-axis.y, axis.x);
+    float stretch = 0.12 + density * 0.24;
+    float baseRadius = 0.065 + density * 0.006;
 
-  float alpha = body * mix(0.34, 0.58, density) + rim * 0.28 + aura * 0.7;
-  alpha *= smoothstep(2.55, 0.18, dist);
+    for (int i = 0; i < TRAIL_LENGTH; i++) {
+      float fi = float(i);
+      float t = fi / float(TRAIL_LENGTH - 1);
+      vec2 trail = -axis * t * stretch;
+      trail += side * sin(phase + fi * 0.75) * 0.025 * (1.0 - t);
+      trail += axis * sin(phase * 0.8 + fi * 0.43) * 0.012;
+      float radius = baseRadius * float(TRAIL_LENGTH) * (1.0 - t * 0.72);
+      float sphere = sdSphere(translate(p, vec3(trail, 0.0)), radius);
+      d = smoothMin(d, sphere, k);
+    }
 
-  gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.78));
-}`;
+    float satellite = sdSphere(
+      translate(p, vec3(axis * (0.26 + density * 0.05) + side * 0.04, 0.02)),
+      0.22 + density * 0.04
+    );
+    d = smoothMin(d, satellite, k);
+
+    return d;
+  }
+
+  vec3 generateNormal(vec3 p) {
+    return normalize(vec3(
+      mapDroplet(p + vec3(EPS, 0.0, 0.0)) - mapDroplet(p + vec3(-EPS, 0.0, 0.0)),
+      mapDroplet(p + vec3(0.0, EPS, 0.0)) - mapDroplet(p + vec3(0.0, -EPS, 0.0)),
+      mapDroplet(p + vec3(0.0, 0.0, EPS)) - mapDroplet(p + vec3(0.0, 0.0, -EPS))
+    ));
+  }
+
+  vec3 dropletColor(vec3 normal, vec3 rayDir) {
+    vec3 reflectDir = reflect(rayDir, normal);
+
+    float noisePosTime = noise3D(reflectDir * 2.0 + vec3(uTime * 0.18 + uSeed));
+    float noiseNegTime = noise3D(reflectDir * 2.0 - vec3(uTime * 0.15 - uSeed));
+
+    vec3 _color0 = mix(uGlow, uCore, 0.32) * noisePosTime;
+    vec3 _color1 = mix(uRim, vec3(1.0), 0.36) * noiseNegTime;
+    vec3 color = (_color0 + _color1 * 0.48) * 1.78;
+    return pow(max(color, vec3(0.0)), vec3(5.8));
+  }
+
+  void main() {
+    float asp = uRes.x / uRes.y;
+    vec2 uv = vUV - uCenter;
+    uv.x *= asp;
+
+    float dist = length(uv) / uRadius;
+
+    if (dist > 2.35) {
+      gl_FragColor = vec4(0.0);
+      return;
+    }
+
+    float density = clamp(uDensity, 0.0, 1.0);
+    float breath = sin(uTime * mix(0.22, 0.36, density) + uSeed) * 0.025;
+
+    vec2 p = uv / (uRadius * (1.0 + breath));
+
+    vec3 origin = vec3(0.0, 0.0, 1.75);
+    vec3 lookAt = vec3(0.0, 0.0, 0.0);
+    vec3 cDir = normalize(lookAt - origin);
+    vec3 cUp = vec3(0.0, 1.0, 0.0);
+    vec3 cSide = cross(cDir, cUp);
+    vec3 ray = origin + cSide * p.x + cUp * p.y;
+    vec3 rayDirection = cDir;
+
+    float marchDist = 0.0;
+    float hit = 0.0;
+    for (int i = 0; i < ITR; i++) {
+      marchDist = mapDroplet(ray);
+      ray += rayDirection * marchDist;
+      if (marchDist < EPS) {
+        hit = 1.0;
+        break;
+      }
+      if (ray.z < -1.2) {
+        break;
+      }
+    }
+
+    float aura = exp(-dist * mix(1.95, 2.5, density)) * (0.04 + density * 0.08);
+    vec3 color = uGlow * aura;
+    float alpha = aura * 0.7;
+
+    if (hit > 0.5) {
+      vec3 normal = generateNormal(ray);
+      vec3 light = normalize(vec3(-0.52, 0.62, 0.72));
+      vec3 halfVec = normalize(light + vec3(0.0, 0.0, 1.0));
+      float spec = pow(max(dot(normal, halfVec), 0.0), 82.0) * (0.35 + density * 0.55);
+      float fresnel = pow(1.0 - max(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0), 2.1);
+      vec3 droplet = dropletColor(normal, rayDirection);
+      droplet += uRim * fresnel * 0.34;
+      droplet += vec3(1.0, 0.96, 0.86) * spec;
+      color += droplet;
+      alpha = mix(0.56, 0.82, density) + fresnel * 0.12;
+    }
+
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.9));
+  }
+`;
