@@ -127,7 +127,7 @@ export class PulseRenderer {
 
     gl.enable(gl.BLEND);
     gl.blendEquation(gl.FUNC_ADD);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     gl.useProgram(this.orbProgram);
 
@@ -167,7 +167,7 @@ export class PulseRenderer {
         friend.density,
         friend.id * 4.93 + 1.7,
         toneFor(friend.colorIdx),
-        0.205 + friend.density * 0.05,
+        0.22 + friend.density * 0.055,
       );
     }
   }
@@ -301,6 +301,8 @@ export class PulseRenderer {
         translate(-50%, -50%)
         scale(${scale})
       `;
+
+      parts.meta.textContent = `${Math.round(friend.density * 100)} m · ${friendMeta(friend)}`;
     }
   }
 
