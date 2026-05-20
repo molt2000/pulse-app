@@ -1,5 +1,5 @@
 import { Friend, ViewportSize, friendDistanceLabel, friendScreenPosition, initialsFor } from '../state';
-import { BACKGROUND_SHADER, ORB_SHADER, VERTEX_SHADER } from './shaders';
+import { BACKGROUND_SHADER, MERGED_ORBS_SHADER, ORB_SHADER, VERTEX_SHADER } from './shaders';
 import { rgbCss, theme, toneFor, type OrbTone } from './theme';
 
 interface RenderPoint {
@@ -27,18 +27,27 @@ const FRIEND_RADIUS = {
 };
 
 const MERGE_DISTANCE_METERS = 10;
-const MAX_MERGE_PULL = 0.68;
-const MERGE_EASE = 0.025;
+const MERGE_STRENGTH = 0.95;
+const MERGE_SMOOTHNESS = 28;
+const MERGE_ANIMATION_EASE = 0.025;
 const MIN_MERGE_SEPARATION = {
-  mobile: 48,
-  desktop: 72,
+  mobile: 14,
+  desktop: 18,
 };
+const MAX_MERGED_FRIENDS = 10;
+
+interface ActiveFriendRender {
+  friend: Friend;
+  point: RenderPoint;
+  mergeLevel: number;
+}
 
 export class PulseRenderer {
   private readonly canvas: HTMLCanvasElement;
   private readonly overlay: HTMLDivElement;
   private readonly gl: WebGLRenderingContext;
   private readonly backgroundProgram: WebGLProgram;
+  private readonly mergedOrbsProgram: WebGLProgram;
   private readonly orbProgram: WebGLProgram;
   private readonly quadBuffer: WebGLBuffer;
   private readonly labels = new Map<number, LabelParts>();
@@ -80,6 +89,7 @@ export class PulseRenderer {
     this.gl = gl;
 
     this.backgroundProgram = this.createProgram(BACKGROUND_SHADER);
+    this.mergedOrbsProgram = this.createProgram(MERGED_ORBS_SHADER);
     this.orbProgram = this.createProgram(ORB_SHADER);
     this.quadBuffer = this.createQuad();
 
@@ -151,23 +161,40 @@ export class PulseRenderer {
     gl.blendEquation(gl.FUNC_ADD);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
+    const activeFriends = this.friends
+      .filter((friend) => friend.active)
+      .map((friend) => ({
+        friend,
+        point: this.visualFriendPoint(friend, time),
+        mergeLevel: this.mergeLevels.get(friend.id) ?? 0,
+      }));
+    const mergedFriends = activeFriends
+      .filter(({ mergeLevel }) => mergeLevel > 0.001)
+      .slice(0, MAX_MERGED_FRIENDS);
+
+    if (mergedFriends.length > 0) {
+      gl.useProgram(this.mergedOrbsProgram);
+      this.bindQuad(this.mergedOrbsProgram);
+      this.drawMergedOrbs(time, mergedFriends);
+    }
+
     gl.useProgram(this.orbProgram);
 
     this.bindQuad(this.orbProgram);
 
-    this.drawOrb(
-      time,
-      { x: this.width / 2, y: this.height / 2 },
-      0.72,
-      0.3,
-      theme.youTone,
-      this.userRadius(),
-    );
+    if (mergedFriends.length === 0) {
+      this.drawOrb(
+        time,
+        { x: this.width / 2, y: this.height / 2 },
+        0.72,
+        0.3,
+        theme.youTone,
+        this.userRadius(),
+      );
+    }
 
-    for (const friend of this.friends) {
-      if (!friend.active) continue;
-
-      const point = this.visualFriendPoint(friend, time);
+    for (const { friend, point, mergeLevel } of activeFriends) {
+      if (mergeLevel > 0.001) continue;
 
       this.drawOrb(
         time,
@@ -215,7 +242,7 @@ export class PulseRenderer {
     const meters = proximityMeters(friend.density);
     const targetLevel = this.targetMergeLevel(meters);
     const previous = this.mergeLevels.get(friend.id) ?? 0;
-    const level = previous + (targetLevel - previous) * MERGE_EASE;
+    const level = previous + (targetLevel - previous) * MERGE_ANIMATION_EASE;
 
     this.mergeLevels.set(friend.id, level);
 
@@ -242,14 +269,14 @@ export class PulseRenderer {
   }
 
   private targetMergeLevel(meters: number): number {
-    if (meters > MERGE_DISTANCE_METERS) {
+    if (meters >= MERGE_DISTANCE_METERS) {
       return 0;
     }
 
     const closeness = 1 - meters / MERGE_DISTANCE_METERS;
     const shaped = smoothstep(closeness);
 
-    return (0.18 + shaped * 0.82) * MAX_MERGE_PULL;
+    return (0.18 + shaped * 0.82) * MERGE_STRENGTH;
   }
 
   private userPoint(): RenderPoint {
@@ -316,6 +343,114 @@ export class PulseRenderer {
     gl.uniform3fv(
       gl.getUniformLocation(this.orbProgram, 'uRim'),
       tone.rim,
+    );
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  private drawMergedOrbs(
+    time: number,
+    mergedFriends: ActiveFriendRender[],
+  ): void {
+    const gl = this.gl;
+    const userCenter = this.toWorld(this.userPoint());
+    const friendCenters = new Float32Array(MAX_MERGED_FRIENDS * 2);
+    const friendRadii = new Float32Array(MAX_MERGED_FRIENDS);
+    const friendMerges = new Float32Array(MAX_MERGED_FRIENDS);
+    const friendCores = new Float32Array(MAX_MERGED_FRIENDS * 3);
+    const friendGlows = new Float32Array(MAX_MERGED_FRIENDS * 3);
+    const friendRims = new Float32Array(MAX_MERGED_FRIENDS * 3);
+
+    for (let i = 0; i < mergedFriends.length; i++) {
+      const { friend, point, mergeLevel } = mergedFriends[i];
+      const center = this.toWorld(point);
+      const radius = this.friendRadius(friend.density);
+      const tone = toneFor(friend.colorIdx);
+
+      friendCenters[i * 2] = center[0];
+      friendCenters[i * 2 + 1] = center[1];
+      friendRadii[i] = radius;
+      friendMerges[i] = mergeLevel / MERGE_STRENGTH;
+      friendCores.set(tone.core, i * 3);
+      friendGlows.set(tone.glow, i * 3);
+      friendRims.set(tone.rim, i * 3);
+    }
+
+    gl.uniform1f(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uTime'),
+      time,
+    );
+
+    gl.uniform1f(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uSmoothness'),
+      MERGE_SMOOTHNESS,
+    );
+
+    gl.uniform1i(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uFriendCount'),
+      mergedFriends.length,
+    );
+
+    gl.uniform2f(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uUserCenter'),
+      userCenter[0],
+      userCenter[1],
+    );
+
+    gl.uniform2fv(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uFriendCenters[0]'),
+      friendCenters,
+    );
+
+    gl.uniform2f(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uRes'),
+      this.canvas.width,
+      this.canvas.height,
+    );
+
+    gl.uniform1f(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uUserRadius'),
+      this.userRadius(),
+    );
+
+    gl.uniform1fv(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uFriendRadii[0]'),
+      friendRadii,
+    );
+
+    gl.uniform1fv(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uFriendMerges[0]'),
+      friendMerges,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uUserCore'),
+      theme.youTone.core,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uUserGlow'),
+      theme.youTone.glow,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uUserRim'),
+      theme.youTone.rim,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uFriendCores[0]'),
+      friendCores,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uFriendGlows[0]'),
+      friendGlows,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uFriendRims[0]'),
+      friendRims,
     );
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -488,6 +623,15 @@ export class PulseRenderer {
     return [
       point.x / this.width,
       1 - point.y / this.height,
+    ];
+  }
+
+  private toWorld(point: RenderPoint): [number, number] {
+    const aspect = this.canvas.width / this.canvas.height;
+
+    return [
+      (point.x / this.width - 0.5) * aspect,
+      0.5 - point.y / this.height,
     ];
   }
 
