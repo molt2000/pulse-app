@@ -55,8 +55,13 @@ export function initialsFor(name: string): string {
     .toUpperCase();
 }
 
-export function friendMeta(friend: Friend): string {
-  if (friend.density >= 0.78) return 'nearby';
-  if (friend.density >= 0.48) return 'moving';
-  return 'quiet';
+export function friendDistanceLabel(friend: Friend): string {
+  const proximity = Math.max(0, Math.min(1, friend.density));
+  const meters = Math.round((1 - proximity) * 1000);
+
+  if (meters >= 1000) return '>1 km';
+  if (meters <= 0) return '0 m';
+  if (meters >= 100) return `${Math.round(meters / 10) * 10} m`;
+
+  return `${meters} m`;
 }

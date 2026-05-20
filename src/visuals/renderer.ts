@@ -1,4 +1,4 @@
-import { Friend, ViewportSize, friendMeta, friendScreenPosition, initialsFor } from '../state';
+import { Friend, ViewportSize, friendDistanceLabel, friendScreenPosition, initialsFor } from '../state';
 import { BACKGROUND_SHADER, ORB_SHADER, VERTEX_SHADER } from './shaders';
 import { rgbCss, theme, toneFor, type OrbTone } from './theme';
 
@@ -302,7 +302,7 @@ export class PulseRenderer {
         scale(${scale})
       `;
 
-      parts.meta.textContent = `${Math.round(friend.density * 100)} m · ${friendMeta(friend)}`;
+      parts.meta.textContent = friendDistanceLabel(friend);
     }
   }
 
@@ -336,7 +336,7 @@ export class PulseRenderer {
 
       const meta = document.createElement('div');
       meta.className = 'pulse-friend-meta';
-      meta.textContent = `${Math.round(friend.density * 100)} m`;
+      meta.textContent = friendDistanceLabel(friend);
 
       root.append(initials, name, meta);
 
