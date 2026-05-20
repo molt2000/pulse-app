@@ -25,30 +25,38 @@ export class PulseRenderer {
   private readonly positions = new Map<number, RenderPoint>();
   private readonly isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
   private readonly dpr = Math.min(window.devicePixelRatio || 1, this.isMobile ? 1 : 1.5);
+
   private width = 1;
   private height = 1;
   private start = 0;
   private raf = 0;
 
-  constructor(private readonly root: HTMLElement, private readonly friends: Friend[]) {
+  constructor(
+    private readonly root: HTMLElement,
+    private readonly friends: Friend[],
+  ) {
     injectRendererStyles();
 
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'pulse-canvas';
+
     this.overlay = document.createElement('div');
     this.overlay.className = 'pulse-overlay';
 
     this.root.append(this.canvas, this.overlay);
 
-    const glOpts: WebGLContextAttributes = {
+    const gl = this.canvas.getContext('webgl', {
       antialias: false,
       alpha: false,
       powerPreference: 'high-performance',
-    };
-    const gl = this.canvas.getContext('webgl', glOpts);
-    if (!gl) throw new Error('Pulse needs WebGL to render the live proximity field.');
+    });
+
+    if (!gl) {
+      throw new Error('WebGL unavailable');
+    }
 
     this.gl = gl;
+
     this.backgroundProgram = this.createProgram(BACKGROUND_SHADER);
     this.orbProgram = this.createProgram(ORB_SHADER);
     this.quadBuffer = this.createQuad();
@@ -56,6 +64,7 @@ export class PulseRenderer {
     this.createStaticUi();
     this.rebuildLabels();
     this.resize();
+
     window.addEventListener('resize', this.resize);
   }
 
@@ -66,6 +75,7 @@ export class PulseRenderer {
   destroy(): void {
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.resize);
+
     this.canvas.remove();
     this.overlay.remove();
   }
@@ -75,51 +85,85 @@ export class PulseRenderer {
   }
 
   getViewport(): ViewportSize {
-    return { width: this.width, height: this.height };
+    return {
+      width: this.width,
+      height: this.height,
+    };
   }
 
   private readonly resize = (): void => {
     this.width = window.innerWidth;
     this.height = window.innerHeight;
+
     this.canvas.width = Math.round(this.width * this.dpr);
     this.canvas.height = Math.round(this.height * this.dpr);
-    this.rebuildLabels();
   };
 
   private readonly frame = (timestamp: number): void => {
     if (!this.start) this.start = timestamp;
+
     const time = (timestamp - this.start) * 0.001;
 
     this.draw(time);
     this.updateLabels(time);
+
     this.raf = requestAnimationFrame(this.frame);
   };
 
   private draw(time: number): void {
     const gl = this.gl;
+
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+
     gl.disable(gl.BLEND);
+
     gl.useProgram(this.backgroundProgram);
+
     this.bindQuad(this.backgroundProgram);
+
     this.setBackgroundUniforms(time);
+
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     gl.enable(gl.BLEND);
     gl.blendEquation(gl.FUNC_ADD);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+
     gl.useProgram(this.orbProgram);
+
     this.bindQuad(this.orbProgram);
 
-    this.drawOrb(time, { x: this.width / 2, y: this.height / 2 }, 0.72, 0.3, theme.youTone, 0.28);
+    this.drawOrb(
+      time,
+      { x: this.width / 2, y: this.height / 2 },
+      0.72,
+      0.3,
+      theme.youTone,
+      0.28,
+    );
 
     for (const friend of this.friends) {
       if (!friend.active) continue;
-      const target = friendScreenPosition(friend.bearing, this.getViewport());
+
+      const target = friendScreenPosition(
+        friend.bearing,
+        this.getViewport(),
+      );
+
       const current = this.smoothPosition(friend.id, target);
-      const float = this.friendFloat(friend.id, time, friend.density);
+
+      const float = this.friendFloat(
+        friend.id,
+        time,
+        friend.density,
+      );
+
       this.drawOrb(
         time,
-        { x: current.x + float.x, y: current.y + float.y },
+        {
+          x: current.x + float.x,
+          y: current.y + float.y,
+        },
         friend.density,
         friend.id * 4.93 + 1.7,
         toneFor(friend.colorIdx),
@@ -128,64 +172,161 @@ export class PulseRenderer {
     }
   }
 
-  private drawOrb(time: number, point: RenderPoint, density: number, seed: number, tone: OrbTone, radius: number): void {
+  private drawOrb(
+    time: number,
+    point: RenderPoint,
+    density: number,
+    seed: number,
+    tone: OrbTone,
+    radius: number,
+  ): void {
     const gl = this.gl;
-    const program = this.orbProgram;
+
     const center = this.toUv(point);
 
-    gl.uniform1f(gl.getUniformLocation(program, 'uTime'), time);
-    gl.uniform1f(gl.getUniformLocation(program, 'uSeed'), seed);
-    gl.uniform1f(gl.getUniformLocation(program, 'uDensity'), density);
-    gl.uniform1f(gl.getUniformLocation(program, 'uRadius'), radius);
-    gl.uniform2f(gl.getUniformLocation(program, 'uCenter'), center[0], center[1]);
-    gl.uniform2f(gl.getUniformLocation(program, 'uRes'), this.canvas.width, this.canvas.height);
-    gl.uniform3fv(gl.getUniformLocation(program, 'uCore'), tone.core);
-    gl.uniform3fv(gl.getUniformLocation(program, 'uGlow'), tone.glow);
-    gl.uniform3fv(gl.getUniformLocation(program, 'uRim'), tone.rim);
+    gl.uniform1f(
+      gl.getUniformLocation(this.orbProgram, 'uTime'),
+      time,
+    );
+
+    gl.uniform1f(
+      gl.getUniformLocation(this.orbProgram, 'uSeed'),
+      seed,
+    );
+
+    gl.uniform1f(
+      gl.getUniformLocation(this.orbProgram, 'uDensity'),
+      density,
+    );
+
+    gl.uniform1f(
+      gl.getUniformLocation(this.orbProgram, 'uRadius'),
+      radius,
+    );
+
+    gl.uniform2f(
+      gl.getUniformLocation(this.orbProgram, 'uCenter'),
+      center[0],
+      center[1],
+    );
+
+    gl.uniform2f(
+      gl.getUniformLocation(this.orbProgram, 'uRes'),
+      this.canvas.width,
+      this.canvas.height,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.orbProgram, 'uCore'),
+      tone.core,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.orbProgram, 'uGlow'),
+      tone.glow,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.orbProgram, 'uRim'),
+      tone.rim,
+    );
+
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
   private setBackgroundUniforms(time: number): void {
     const gl = this.gl;
-    const program = this.backgroundProgram;
-    gl.uniform1f(gl.getUniformLocation(program, 'uTime'), time);
-    gl.uniform2f(gl.getUniformLocation(program, 'uRes'), this.canvas.width, this.canvas.height);
-    gl.uniform3fv(gl.getUniformLocation(program, 'uBase'), theme.background.base);
-    gl.uniform3fv(gl.getUniformLocation(program, 'uUpper'), theme.background.upper);
-    gl.uniform3fv(gl.getUniformLocation(program, 'uWarmth'), theme.background.warmth);
-    gl.uniform3fv(gl.getUniformLocation(program, 'uDepth'), theme.background.depth);
+
+    gl.uniform1f(
+      gl.getUniformLocation(this.backgroundProgram, 'uTime'),
+      time,
+    );
+
+    gl.uniform2f(
+      gl.getUniformLocation(this.backgroundProgram, 'uRes'),
+      this.canvas.width,
+      this.canvas.height,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.backgroundProgram, 'uBase'),
+      theme.background.base,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.backgroundProgram, 'uUpper'),
+      theme.background.upper,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.backgroundProgram, 'uWarmth'),
+      theme.background.warmth,
+    );
+
+    gl.uniform3fv(
+      gl.getUniformLocation(this.backgroundProgram, 'uDepth'),
+      theme.background.depth,
+    );
   }
 
   private updateLabels(time: number): void {
     const viewport = this.getViewport();
+
     for (const friend of this.friends) {
       const parts = this.labels.get(friend.id);
+
       if (!parts) continue;
 
-      const position = this.positions.get(friend.id) ?? friendScreenPosition(friend.bearing, viewport);
-      const float = this.friendFloat(friend.id, time, friend.density);
-      const scale = 0.96 + friend.density * 0.08 + Math.sin(time * 0.55 + friend.id) * 0.018;
+      const position =
+        this.positions.get(friend.id) ??
+        friendScreenPosition(friend.bearing, viewport);
 
-      parts.root.style.opacity = friend.active ? '1' : '0';
-      parts.root.style.transform = `translate3d(${position.x + float.x}px, ${position.y + float.y}px, 0) translate(-50%, -50%) scale(${scale})`;
-      parts.meta.textContent = `${Math.round(friend.density * 100)} m · ${friendMeta(friend)}`;
+      const float = this.friendFloat(
+        friend.id,
+        time,
+        friend.density,
+      );
+
+      const scale =
+        0.96 +
+        friend.density * 0.08 +
+        Math.sin(time * 0.55 + friend.id) * 0.018;
+
+      parts.root.style.transform = `
+        translate3d(
+          ${position.x + float.x}px,
+          ${position.y + float.y}px,
+          0
+        )
+        translate(-50%, -50%)
+        scale(${scale})
+      `;
     }
   }
 
   private rebuildLabels(): void {
-    for (const label of this.labels.values()) label.root.remove();
+    for (const label of this.labels.values()) {
+      label.root.remove();
+    }
+
     this.labels.clear();
 
     for (const friend of this.friends) {
       const tone = toneFor(friend.colorIdx);
+
       const root = document.createElement('div');
       root.className = 'pulse-friend-label';
 
       const initials = document.createElement('div');
       initials.className = 'pulse-friend-initials';
+
       initials.textContent = initialsFor(friend.name);
+
       initials.style.borderColor = rgbCss(tone.rim, 0.26);
-      initials.style.boxShadow = `0 0 24px ${rgbCss(tone.glow, 0.18)}`;
+
+      initials.style.boxShadow = `
+        0 0 24px ${rgbCss(tone.glow, 0.18)}
+      `;
 
       const name = document.createElement('div');
       name.className = 'pulse-friend-name';
@@ -193,27 +334,45 @@ export class PulseRenderer {
 
       const meta = document.createElement('div');
       meta.className = 'pulse-friend-meta';
+      meta.textContent = `${Math.round(friend.density * 100)} m`;
 
       root.append(initials, name, meta);
+
       this.overlay.appendChild(root);
-      this.labels.set(friend.id, { root, initials, name, meta });
+
+      this.labels.set(friend.id, {
+        root,
+        initials,
+        name,
+        meta,
+      });
     }
   }
 
   private createStaticUi(): void {
     const title = document.createElement('div');
+
     title.className = 'pulse-title';
     title.textContent = 'PULSE';
 
     const you = document.createElement('div');
+
     you.className = 'pulse-you';
-    you.innerHTML = '<span>YOU</span><small>centered</small>';
+
+    you.innerHTML = `
+      <span>YOU</span>
+      <small>centered</small>
+    `;
 
     this.overlay.append(title, you);
   }
 
-  private smoothPosition(id: number, target: RenderPoint): RenderPoint {
+  private smoothPosition(
+    id: number,
+    target: RenderPoint,
+  ): RenderPoint {
     const previous = this.positions.get(id);
+
     if (!previous) {
       this.positions.set(id, target);
       return target;
@@ -223,12 +382,19 @@ export class PulseRenderer {
       x: previous.x + (target.x - previous.x) * 0.055,
       y: previous.y + (target.y - previous.y) * 0.055,
     };
+
     this.positions.set(id, next);
+
     return next;
   }
 
-  private friendFloat(id: number, time: number, density: number): RenderPoint {
+  private friendFloat(
+    id: number,
+    time: number,
+    density: number,
+  ): RenderPoint {
     const amount = 4 + density * 7;
+
     return {
       x: Math.sin(time * 0.2 + id * 1.7) * amount,
       y: Math.cos(time * 0.17 + id * 1.13) * amount * 0.72,
@@ -236,56 +402,96 @@ export class PulseRenderer {
   }
 
   private toUv(point: RenderPoint): [number, number] {
-    return [point.x / this.width, 1 - point.y / this.height];
+    return [
+      point.x / this.width,
+      1 - point.y / this.height,
+    ];
   }
 
   private createProgram(fragmentShader: string): WebGLProgram {
     const gl = this.gl;
+
     const program = gl.createProgram();
-    if (!program) throw new Error('Could not create WebGL program.');
 
-    gl.attachShader(program, this.createShader(gl.VERTEX_SHADER, VERTEX_SHADER));
-    gl.attachShader(program, this.createShader(gl.FRAGMENT_SHADER, fragmentShader));
-    gl.linkProgram(program);
-
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      throw new Error(gl.getProgramInfoLog(program) ?? 'WebGL program failed to link.');
+    if (!program) {
+      throw new Error('Program creation failed');
     }
+
+    gl.attachShader(
+      program,
+      this.createShader(gl.VERTEX_SHADER, VERTEX_SHADER),
+    );
+
+    gl.attachShader(
+      program,
+      this.createShader(gl.FRAGMENT_SHADER, fragmentShader),
+    );
+
+    gl.linkProgram(program);
 
     return program;
   }
 
-  private createShader(type: number, source: string): WebGLShader {
+  private createShader(
+    type: number,
+    source: string,
+  ): WebGLShader {
     const gl = this.gl;
+
     const shader = gl.createShader(type);
-    if (!shader) throw new Error('Could not create WebGL shader.');
+
+    if (!shader) {
+      throw new Error('Shader creation failed');
+    }
 
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
-
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      throw new Error(gl.getShaderInfoLog(shader) ?? 'WebGL shader failed to compile.');
-    }
 
     return shader;
   }
 
   private createQuad(): WebGLBuffer {
     const gl = this.gl;
+
     const buffer = gl.createBuffer();
-    if (!buffer) throw new Error('Could not create WebGL buffer.');
+
+    if (!buffer) {
+      throw new Error('Buffer creation failed');
+    }
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([
+        -1, -1,
+         1, -1,
+        -1,  1,
+         1,  1,
+      ]),
+      gl.STATIC_DRAW,
+    );
+
     return buffer;
   }
 
   private bindQuad(program: WebGLProgram): void {
     const gl = this.gl;
+
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
+
     const attribute = gl.getAttribLocation(program, 'aPos');
+
     gl.enableVertexAttribArray(attribute);
-    gl.vertexAttribPointer(attribute, 2, gl.FLOAT, false, 0, 0);
+
+    gl.vertexAttribPointer(
+      attribute,
+      2,
+      gl.FLOAT,
+      false,
+      0,
+      0,
+    );
   }
 }
 
@@ -293,21 +499,21 @@ let stylesInjected = false;
 
 function injectRendererStyles(): void {
   if (stylesInjected) return;
+
   stylesInjected = true;
 
   const style = document.createElement('style');
-  style.textContent = `
-    :root {
-      color-scheme: dark;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
-      background: #020304;
-    }
 
+  style.textContent = `
     body {
-      background: #020304;
+      margin: 0;
       overflow: hidden;
-      -webkit-font-smoothing: antialiased;
-      text-rendering: geometricPrecision;
+      background: #020304;
+      color: white;
+      font-family:
+        Inter,
+        system-ui,
+        sans-serif;
     }
 
     .pulse-canvas,
@@ -318,11 +524,6 @@ function injectRendererStyles(): void {
       height: 100%;
     }
 
-    .pulse-canvas {
-      display: block;
-      touch-action: none;
-    }
-
     .pulse-overlay {
       pointer-events: none;
       z-index: 2;
@@ -330,13 +531,12 @@ function injectRendererStyles(): void {
 
     .pulse-title {
       position: fixed;
-      top: max(18px, env(safe-area-inset-top));
+      top: 18px;
       left: 50%;
       transform: translateX(-50%);
-      color: rgba(245, 241, 232, 0.38);
       font-size: 10px;
-      font-weight: 650;
-      letter-spacing: 0.38em;
+      letter-spacing: 0.4em;
+      opacity: 0.4;
     }
 
     .pulse-you {
@@ -347,22 +547,7 @@ function injectRendererStyles(): void {
       display: grid;
       place-items: center;
       gap: 3px;
-      color: rgba(250, 248, 240, 0.82);
       text-align: center;
-      text-shadow: 0 1px 20px rgba(255, 250, 230, 0.22);
-    }
-
-    .pulse-you span {
-      font-size: 12px;
-      font-weight: 760;
-      letter-spacing: 0.18em;
-    }
-
-    .pulse-you small {
-      color: rgba(245, 240, 228, 0.34);
-      font-size: 9px;
-      font-weight: 520;
-      letter-spacing: 0.08em;
     }
 
     .pulse-friend-label {
@@ -370,73 +555,47 @@ function injectRendererStyles(): void {
       left: 0;
       top: 0;
       width: 86px;
-      display: grid;
-      place-items: center;
-      gap: 5px;
-      color: rgba(248, 246, 238, 0.9);
+      height: 86px;
       text-align: center;
       will-change: transform, opacity;
-      transition: opacity 420ms ease;
     }
 
     .pulse-friend-initials {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
       width: 40px;
       height: 40px;
       display: grid;
       place-items: center;
-      border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 999px;
-      background:
-        linear-gradient(145deg, rgba(255,255,255,0.16), rgba(255,255,255,0.035)),
-        rgba(8, 10, 11, 0.22);
+      background: rgba(255,255,255,0.12);
       backdrop-filter: blur(7px);
       font-size: 11px;
-      font-weight: 720;
-      letter-spacing: 0.05em;
+      font-weight: 700;
     }
 
     .pulse-friend-name {
-      max-width: 86px;
-      color: rgba(248, 246, 238, 0.76);
+      position: absolute;
+      left: 50%;
+      top: calc(50% + 25px);
+      transform: translateX(-50%);
       font-size: 11px;
-      font-weight: 660;
-      line-height: 1.1;
-      overflow: hidden;
-      text-overflow: ellipsis;
       white-space: nowrap;
-      text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
+      opacity: 0.8;
     }
 
     .pulse-friend-meta {
-      color: rgba(248, 246, 238, 0.38);
+      position: absolute;
+      left: 50%;
+      top: calc(50% + 40px);
+      transform: translateX(-50%);
       font-size: 9px;
-      font-weight: 540;
-      line-height: 1;
-      letter-spacing: 0.02em;
+      opacity: 0.45;
       white-space: nowrap;
     }
-
-    @media (max-width: 520px) {
-      .pulse-friend-label {
-        width: 76px;
-        gap: 4px;
-      }
-
-      .pulse-friend-initials {
-        width: 36px;
-        height: 36px;
-        font-size: 10px;
-      }
-
-      .pulse-friend-name {
-        max-width: 76px;
-        font-size: 10px;
-      }
-
-      .pulse-friend-meta {
-        font-size: 8px;
-      }
-    }
   `;
+
   document.head.appendChild(style);
 }
