@@ -26,7 +26,7 @@ const FRIEND_RADIUS = {
   desktopDensity: 0.032,
 };
 
-const MERGE_DISTANCE_METERS = 10;
+const MERGE_DISTANCE_METERS = 100;
 const MERGE_STRENGTH = 0.95;
 const MERGE_SMOOTHNESS = 28;
 const MERGE_ANIMATION_EASE = 0.025;
