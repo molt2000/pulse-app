@@ -26,14 +26,15 @@ export const friends: Friend[] = [
 ];
 
 const ORB_REACH = 0.76;
+const VERTICAL_SQUEEZE = 0.72; // pulls top/bottom orbs closer in, leave left/right unchanged
 
 export function friendScreenPosition(bearing: number, viewport: ViewportSize): { x: number; y: number } {
   const cx = viewport.width / 2;
   const cy = viewport.height / 2;
   const dx = Math.sin((bearing * Math.PI) / 180);
   const dy = -Math.cos((bearing * Math.PI) / 180);
-  let t = Number.POSITIVE_INFINITY;
 
+  let t = Number.POSITIVE_INFINITY;
   if (dx > 1e-6) t = Math.min(t, (viewport.width - cx) / dx);
   if (dx < -1e-6) t = Math.min(t, (0 - cx) / dx);
   if (dy > 1e-6) t = Math.min(t, (viewport.height - cy) / dy);
@@ -41,9 +42,11 @@ export function friendScreenPosition(bearing: number, viewport: ViewportSize): {
 
   return {
     x: cx + dx * t * ORB_REACH,
-    y: cy + dy * t * ORB_REACH,
+    y: cy + dy * t * ORB_REACH * VERTICAL_SQUEEZE, // ← only this line changed
   };
 }
+
+
 
 export function initialsFor(name: string): string {
   return name
