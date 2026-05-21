@@ -183,21 +183,20 @@ export const MERGED_ORBS_SHADER = `
     return clamp(density / total, 0.0, 1.0);
   }
 
-  float closestSeed(vec3 p) {
-    float bestDist = length(p.xy - uUserCenter) / uUserRadius;
-    float seed = uUserSeed;
+  float blendedSeed(vec3 p) {
+    float weight = nearestWeight(p, uUserCenter, uUserRadius);
+    float seed = uUserSeed * weight;
+    float total = weight;
 
     for (int i = 0; i < MAX_MERGED_FRIENDS; i++) {
       if (i >= uFriendCount) break;
 
-      float d = length(p.xy - uFriendCenters[i]) / uFriendRadii[i];
-      if (d < bestDist) {
-        bestDist = d;
-        seed = uFriendSeeds[i];
-      }
+      float w = nearestWeight(p, uFriendCenters[i], uFriendRadii[i]);
+      seed += uFriendSeeds[i] * w;
+      total += w;
     }
 
-    return seed;
+    return seed / total;
   }
 
   vec3 dropletColor(vec3 p, vec3 normal, vec3 rayDir) {
@@ -205,7 +204,7 @@ export const MERGED_ORBS_SHADER = `
     vec3 glow;
     vec3 rim;
     blendedTone(p, core, glow, rim);
-    float seed = closestSeed(p);
+    float seed = blendedSeed(p);
 
     vec3 reflectDir = reflect(rayDir, normal);
     float noisePosTime = noise3D(reflectDir * 2.0 + vec3(uTime * 0.18 + seed));
