@@ -451,6 +451,7 @@ export class PulseRenderer {
         translate(-50%, -50%)
         scale(${scale})
       `;
+      parts.root.style.opacity = String(0.25 + friend.density * 0.75);
 
       parts.meta.textContent = friendDistanceLabel(friend);
     }
