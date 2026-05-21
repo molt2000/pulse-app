@@ -15,15 +15,15 @@ interface LabelParts {
 }
 
 const USER_RADIUS = {
-  mobile: 0.085,
-  desktop: 0.13,
+  mobile: 0.062,
+  desktop: 0.09,
 };
 
 const FRIEND_RADIUS = {
-  mobileBase: 0.052,
-  mobileDensity: 0.02,
-  desktopBase: 0.078,
-  desktopDensity: 0.032,
+  mobileBase: 0.018,
+  mobileDensity: 0.052,
+  desktopBase: 0.026,
+  desktopDensity: 0.076,
 };
 
 const MERGE_DISTANCE_METERS = 100;
@@ -177,11 +177,14 @@ export class PulseRenderer {
   }
 
   private friendRadius(density: number): number {
+    // Square the density so low-density friends shrink much faster
+    const shaped = density * density;
+
     if (this.isMobile) {
-      return FRIEND_RADIUS.mobileBase + density * FRIEND_RADIUS.mobileDensity;
+      return FRIEND_RADIUS.mobileBase + shaped * FRIEND_RADIUS.mobileDensity;
     }
 
-    return FRIEND_RADIUS.desktopBase + density * FRIEND_RADIUS.desktopDensity;
+    return FRIEND_RADIUS.desktopBase + shaped * FRIEND_RADIUS.desktopDensity;
   }
 
   private visualFriendPoint(friend: Friend, time: number): RenderPoint {
@@ -207,7 +210,9 @@ export class PulseRenderer {
     const meters = proximityMeters(friend.density);
     const targetLevel = this.targetMergeLevel(meters);
     const previous = this.mergeLevels.get(friend.id) ?? 0;
-    const level = previous + (targetLevel - previous) * MERGE_ANIMATION_EASE;
+    // Ease faster when merge is strong so the orb reaches YOU before the blob looks wrong
+    const ease = MERGE_ANIMATION_EASE + targetLevel * 0.04;
+    const level = previous + (targetLevel - previous) * ease;
 
     this.mergeLevels.set(friend.id, level);
 
@@ -525,9 +530,12 @@ export class PulseRenderer {
       return target;
     }
 
+    // Pull position faster toward YOU when this friend is merging
+    const mergeLevel = this.mergeLevels.get(id) ?? 0;
+    const posEase = 0.055 + mergeLevel * 0.12;
     const next = {
-      x: previous.x + (target.x - previous.x) * 0.055,
-      y: previous.y + (target.y - previous.y) * 0.055,
+      x: previous.x + (target.x - previous.x) * posEase,
+      y: previous.y + (target.y - previous.y) * posEase,
     };
 
     this.positions.set(id, next);
