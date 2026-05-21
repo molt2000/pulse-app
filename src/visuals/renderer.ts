@@ -261,6 +261,7 @@ export class PulseRenderer {
     const friendRadii = new Float32Array(MAX_MERGED_FRIENDS);
     const friendMerges = new Float32Array(MAX_MERGED_FRIENDS);
     const friendDensities = new Float32Array(MAX_MERGED_FRIENDS);
+    const friendSeeds = new Float32Array(MAX_MERGED_FRIENDS);
     const friendCores = new Float32Array(MAX_MERGED_FRIENDS * 3);
     const friendGlows = new Float32Array(MAX_MERGED_FRIENDS * 3);
     const friendRims = new Float32Array(MAX_MERGED_FRIENDS * 3);
@@ -278,6 +279,7 @@ export class PulseRenderer {
       friendRadii[i] = radius;
       friendMerges[i] = mergeLevel / MERGE_STRENGTH;
       friendDensities[i] = friend.density;
+      friendSeeds[i] = friend.id * 4.93 + 1.7;
       friendCores.set(tone.core, i * 3);
       friendGlows.set(tone.glow, i * 3);
       friendRims.set(tone.rim, i * 3);
@@ -322,7 +324,12 @@ export class PulseRenderer {
 
     gl.uniform1f(
       gl.getUniformLocation(this.mergedOrbsProgram, 'uUserDensity'),
-      0.72,
+      0.2,
+    );
+
+    gl.uniform1f(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uUserSeed'),
+      0.3,
     );
 
     gl.uniform1fv(
@@ -338,6 +345,11 @@ export class PulseRenderer {
     gl.uniform1fv(
       gl.getUniformLocation(this.mergedOrbsProgram, 'uFriendDensities[0]'),
       friendDensities,
+    );
+
+    gl.uniform1fv(
+      gl.getUniformLocation(this.mergedOrbsProgram, 'uFriendSeeds[0]'),
+      friendSeeds,
     );
 
     gl.uniform3fv(
