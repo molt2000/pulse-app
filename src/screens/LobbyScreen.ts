@@ -1,9 +1,9 @@
 import { navigateTo } from '../main';
 import { getUserId, getUserName, setUserName, setAvatarUrl, getAvatarUrl, setCurrentRoomId, isProfileComplete } from '../auth';
 import { supabase } from '../supabase';
-import { PulseRenderer } from '../visuals/renderer';
+import { LobbyBackground } from '../visuals/lobbyBackground';
 
-let bgRenderer: PulseRenderer | null = null;
+let bgRenderer: LobbyBackground | null = null;
 
 export function mountLobbyScreen(app: HTMLElement): void {
   const userId = getUserId();
@@ -64,8 +64,8 @@ export function mountLobbyScreen(app: HTMLElement): void {
     bgRenderer = null;
   }
 
-  bgRenderer = new PulseRenderer(app, []);
-  bgRenderer.startRendering();
+  bgRenderer = new LobbyBackground(app);
+  bgRenderer.start();
 
   injectStyles();
 
@@ -284,10 +284,6 @@ function injectStyles(): void {
       z-index: 2;
     }
 
-    .lobby-screen ~ .pulse-overlay {
-      display: none;
-    }
-
     .lobby-avatar-wrap {
       display: flex;
       flex-direction: column;
@@ -312,8 +308,9 @@ function injectStyles(): void {
     .lobby-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
     .lobby-input {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.22);
+      backdrop-filter: blur(12px);
       color: white;
       font-size: 15px;
       padding: 13px 20px;
@@ -325,12 +322,13 @@ function injectStyles(): void {
       transition: border-color 200ms ease;
     }
 
-    .lobby-input::placeholder { opacity: 0.3; }
+    .lobby-input::placeholder { color: white; opacity: 1; }
     .lobby-input:focus { border-color: rgba(255,255,255,0.35); }
 
     .lobby-btn {
-      border: 1px solid rgba(255,255,255,0.18);
-      background: transparent;
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(12px);
       color: white;
       font-size: 11px;
       letter-spacing: .2em;
@@ -346,8 +344,10 @@ function injectStyles(): void {
 
     .lobby-or {
       font-size: 10px;
-      opacity: 0.2;
+      opacity: 1;
       letter-spacing: 0.15em;
+      color: white;
+      font-weight: 600;
     }
 
     .lobby-join-row {
@@ -357,8 +357,9 @@ function injectStyles(): void {
     }
 
     .lobby-code-input {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.22);
+      backdrop-filter: blur(12px);
       color: white;
       font-size: 15px;
       padding: 12px 16px;
@@ -371,12 +372,13 @@ function injectStyles(): void {
       transition: border-color 200ms ease;
     }
 
-    .lobby-code-input::placeholder { opacity: 0.3; letter-spacing: 0.05em; }
+    .lobby-code-input::placeholder { color: white; opacity: 1; letter-spacing: 0.05em; }
     .lobby-code-input:focus { border-color: rgba(255,255,255,0.35); }
 
     .lobby-btn-small {
-      border: 1px solid rgba(255,255,255,0.18);
-      background: transparent;
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(12px);
       color: white;
       font-size: 10px;
       letter-spacing: .2em;
