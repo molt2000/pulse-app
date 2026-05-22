@@ -40,16 +40,16 @@ export class PulseRenderer {
   private readonly overlay: HTMLDivElement;
   private readonly gl: WebGLRenderingContext;
   private readonly backgroundProgram: WebGLProgram;
-  private readonly gravityFieldProgram: WebGLProgram;   // ← NEW
+  private readonly gravityFieldProgram: WebGLProgram;
   private readonly mergedOrbsProgram: WebGLProgram;
   private readonly quadBuffer: WebGLBuffer;
-  private readonly labels       = new Map<number, LabelParts>();
-  private readonly positions    = new Map<number, RenderPoint>();
+  private readonly labels          = new Map<number, LabelParts>();
+  private readonly positions       = new Map<number, RenderPoint>();
   private readonly visualPositions = new Map<number, RenderPoint>();
-  private readonly mergeLevels  = new Map<number, number>();
+  private readonly mergeLevels     = new Map<number, number>();
   private readonly isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
   private readonly dpr = Math.min(window.devicePixelRatio || 1, this.isMobile ? 1 : 1.5);
-  private readonly uniformCache = new Map<string, WebGLUniformLocation | null>();
+  private readonly uniformCache      = new Map<string, WebGLUniformLocation | null>();
   private readonly uniformProgramIds = new WeakMap<WebGLProgram, number>();
   private nextUniformProgramId = 0;
   private width  = 1;
@@ -78,7 +78,7 @@ export class PulseRenderer {
     this.gl = gl;
 
     this.backgroundProgram   = this.createProgram(BACKGROUND_SHADER);
-    this.gravityFieldProgram = this.createProgram(GRAVITY_FIELD_SHADER); // ← NEW
+    this.gravityFieldProgram = this.createProgram(GRAVITY_FIELD_SHADER);
     this.mergedOrbsProgram   = this.createProgram(MERGED_ORBS_SHADER);
     this.quadBuffer          = this.createQuad();
 
@@ -154,7 +154,7 @@ export class PulseRenderer {
     gl.blendEquation(gl.FUNC_ADD);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    this.drawGravityField(time, activeFriends);   // ← NEW
+    this.drawGravityField(time, activeFriends);
 
     // ── 3. Orbs ─────────────────────────────────────────────────────────────
     gl.useProgram(this.mergedOrbsProgram);
@@ -164,7 +164,7 @@ export class PulseRenderer {
 
   // ── gravity field pass ───────────────────────────────────────────────────────
   private drawGravityField(time: number, activeFriends: ActiveFriendRender[]): void {
-    const gl = this.gl;
+    const gl  = this.gl;
     const MAX = GRAVITY_MAX_ORBS;
 
     const centers   = new Float32Array(MAX * 2);
@@ -194,11 +194,11 @@ export class PulseRenderer {
     this.bindQuad(this.gravityFieldProgram);
 
     const loc = (n: string) => this.ul(this.gravityFieldProgram, n);
-    gl.uniform1f(loc('uTime'),             time);
-    gl.uniform2f(loc('uRes'),              this.canvas.width, this.canvas.height);
-    gl.uniform1i(loc('uOrbCount'),         count);
-    gl.uniform2fv(loc('uOrbCenters[0]'),  centers);
-    gl.uniform1fv(loc('uOrbRadii[0]'),    radii);
+    gl.uniform1f(loc('uTime'),              time);
+    gl.uniform2f(loc('uRes'),               this.canvas.width, this.canvas.height);
+    gl.uniform1i(loc('uOrbCount'),          count);
+    gl.uniform2fv(loc('uOrbCenters[0]'),   centers);
+    gl.uniform1fv(loc('uOrbRadii[0]'),     radii);
     gl.uniform1fv(loc('uOrbStrengths[0]'), strengths);
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -219,9 +219,9 @@ export class PulseRenderer {
     const target  = friendScreenPosition(friend.bearing, this.getViewport());
     const current = this.smoothPosition(friend.id, target);
     const float_  = this.friendFloat(friend.id, time, friend.density);
-    const meters = proximityMeters(friend.density);
-    const pull   = softGravityPull(meters);
-    const user   = this.userPoint();
+    const meters  = proximityMeters(friend.density);
+    const pull    = softGravityPull(meters);
+    const user    = this.userPoint();
     const floated = {
       x: current.x + float_.x,
       y: current.y + float_.y,
@@ -236,16 +236,16 @@ export class PulseRenderer {
   }
 
   private applyUserMerge(friend: Friend, point: RenderPoint): RenderPoint {
-    const user   = this.userPoint();
-    const meters = proximityMeters(friend.density);
+    const user        = this.userPoint();
+    const meters      = proximityMeters(friend.density);
     const targetLevel = this.targetMergeLevel(meters);
     const previous    = this.mergeLevels.get(friend.id) ?? 0;
     const ease        = MERGE_ANIMATION_EASE + targetLevel * 0.04;
     const level       = previous + (targetLevel - previous) * ease;
     this.mergeLevels.set(friend.id, level);
     if (level <= 0.001) return point;
-    const dx = user.x - point.x;
-    const dy = user.y - point.y;
+    const dx       = user.x - point.x;
+    const dy       = user.y - point.y;
     const distance = Math.hypot(dx, dy);
     const minSep   = this.isMobile ? MIN_MERGE_SEPARATION.mobile : MIN_MERGE_SEPARATION.desktop;
     const distCappedLevel = Math.max(0, 1 - minSep / Math.max(distance, minSep));
@@ -265,15 +265,15 @@ export class PulseRenderer {
 
   private drawMergedOrbs(time: number, activeFriends: ActiveFriendRender[]): void {
     const gl = this.gl;
-    const userCenter    = this.toWorld(this.userPoint());
-    const friendCenters = new Float32Array(MAX_MERGED_FRIENDS * 2);
-    const friendRadii   = new Float32Array(MAX_MERGED_FRIENDS);
-    const friendMerges  = new Float32Array(MAX_MERGED_FRIENDS);
+    const userCenter      = this.toWorld(this.userPoint());
+    const friendCenters   = new Float32Array(MAX_MERGED_FRIENDS * 2);
+    const friendRadii     = new Float32Array(MAX_MERGED_FRIENDS);
+    const friendMerges    = new Float32Array(MAX_MERGED_FRIENDS);
     const friendDensities = new Float32Array(MAX_MERGED_FRIENDS);
-    const friendSeeds   = new Float32Array(MAX_MERGED_FRIENDS);
-    const friendCores   = new Float32Array(MAX_MERGED_FRIENDS * 3);
-    const friendGlows   = new Float32Array(MAX_MERGED_FRIENDS * 3);
-    const friendRims    = new Float32Array(MAX_MERGED_FRIENDS * 3);
+    const friendSeeds     = new Float32Array(MAX_MERGED_FRIENDS);
+    const friendCores     = new Float32Array(MAX_MERGED_FRIENDS * 3);
+    const friendGlows     = new Float32Array(MAX_MERGED_FRIENDS * 3);
+    const friendRims      = new Float32Array(MAX_MERGED_FRIENDS * 3);
 
     const friendsToDraw = activeFriends.slice(0, MAX_MERGED_FRIENDS);
     for (let i = 0; i < friendsToDraw.length; i++) {
@@ -294,15 +294,15 @@ export class PulseRenderer {
 
     const p  = this.mergedOrbsProgram;
     const ul = (n: string) => this.ul(p, n);
-    gl.uniform1f(ul('uTime'),            time);
-    gl.uniform1f(ul('uSmoothness'),      MERGE_SMOOTHNESS);
-    gl.uniform1i(ul('uFriendCount'),     friendsToDraw.length);
-    gl.uniform2f(ul('uUserCenter'),      userCenter[0], userCenter[1]);
+    gl.uniform1f(ul('uTime'),              time);
+    gl.uniform1f(ul('uSmoothness'),        MERGE_SMOOTHNESS);
+    gl.uniform1i(ul('uFriendCount'),       friendsToDraw.length);
+    gl.uniform2f(ul('uUserCenter'),        userCenter[0], userCenter[1]);
     gl.uniform2fv(ul('uFriendCenters[0]'), friendCenters);
-    gl.uniform2f(ul('uRes'),             this.canvas.width, this.canvas.height);
-    gl.uniform1f(ul('uUserRadius'),      this.userRadius());
-    gl.uniform1f(ul('uUserDensity'),     0.2);
-    gl.uniform1f(ul('uUserSeed'),        0.3);
+    gl.uniform2f(ul('uRes'),               this.canvas.width, this.canvas.height);
+    gl.uniform1f(ul('uUserRadius'),        this.userRadius());
+    gl.uniform1f(ul('uUserDensity'),       0.2);
+    gl.uniform1f(ul('uUserSeed'),          0.3);
     gl.uniform1fv(ul('uFriendRadii[0]'),     friendRadii);
     gl.uniform1fv(ul('uFriendMerges[0]'),    friendMerges);
     gl.uniform1fv(ul('uFriendDensities[0]'), friendDensities);
@@ -321,10 +321,10 @@ export class PulseRenderer {
     const ul = (n: string) => this.ul(this.backgroundProgram, n);
     gl.uniform1f(ul('uTime'), time);
     gl.uniform2f(ul('uRes'),  this.canvas.width, this.canvas.height);
-    gl.uniform3fv(ul('uBase'),    theme.background.base);
-    gl.uniform3fv(ul('uUpper'),   theme.background.upper);
-    gl.uniform3fv(ul('uWarmth'),  theme.background.warmth);
-    gl.uniform3fv(ul('uDepth'),   theme.background.depth);
+    gl.uniform3fv(ul('uBase'),   theme.background.base);
+    gl.uniform3fv(ul('uUpper'),  theme.background.upper);
+    gl.uniform3fv(ul('uWarmth'), theme.background.warmth);
+    gl.uniform3fv(ul('uDepth'),  theme.background.depth);
   }
 
   private updateLabels(time: number): void {
@@ -334,11 +334,9 @@ export class PulseRenderer {
       const position = this.visualPositions.get(friend.id)
                     ?? this.visualFriendPoint(friend, time);
       const scale    = 0.96 + friend.density * 0.08 + Math.sin(time * 0.55 + friend.id) * 0.018;
-      parts.root.style.transform = `
-        translate3d(${position.x}px, ${position.y}px, 0)
-        translate(-50%, -50%)
-        scale(${scale})
-      `;
+      // translate3d bringt den Ursprung exakt auf den Orb-Mittelpunkt.
+      // Da der Container width:0/height:0 hat, brauchen wir kein translate(-50%,-50%) mehr.
+      parts.root.style.transform = `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`;
       parts.root.style.opacity   = String(0.55 + friend.density * 0.45);
       parts.root.style.zIndex    = String(Math.round(friend.density * 10));
       parts.meta.textContent     = friendDistanceLabel(friend);
@@ -352,17 +350,21 @@ export class PulseRenderer {
       const tone     = toneFor(friend.colorIdx);
       const root     = document.createElement('div');
       root.className = 'pulse-friend-label';
+
       const initials = document.createElement('div');
-      initials.className = 'pulse-friend-initials';
+      initials.className   = 'pulse-friend-initials';
       initials.textContent = initialsFor(friend.name);
       initials.style.borderColor = rgbCss(tone.rim, 0.26);
       initials.style.boxShadow   = `0 0 24px ${rgbCss(tone.glow, 0.18)}`;
+
       const name = document.createElement('div');
       name.className   = 'pulse-friend-name';
       name.textContent = friend.name;
+
       const meta = document.createElement('div');
       meta.className   = 'pulse-friend-meta';
       meta.textContent = friendDistanceLabel(friend);
+
       root.append(initials, name, meta);
       this.overlay.appendChild(root);
       this.labels.set(friend.id, { root, initials, name, meta });
@@ -454,13 +456,11 @@ export class PulseRenderer {
  */
 function softGravityPull(meters: number): number {
   if (meters >= 250) return 0;
-  if (meters <= 0) return 0.28;
-
+  if (meters <= 0)   return 0.28;
   if (meters > 100) {
     const t = 1 - (meters - 100) / 150;
     return smoothstep(t) * 0.08;
   }
-
   const t = 1 - meters / 100;
   return 0.08 + smoothstep(t) * 0.20;
 }
@@ -479,53 +479,111 @@ function injectRendererStyles(): void {
   const style = document.createElement('style');
   style.id = 'pulse-renderer-styles';
   style.textContent = `
-    body { margin:0; overflow:hidden; background:#020304; color:white; font-family:Inter,system-ui,sans-serif; }
-    .pulse-canvas, .pulse-overlay { position:fixed; inset:0; width:100%; height:100%; }
-    .pulse-overlay { pointer-events:none; z-index:2; }
-    .pulse-title { position:fixed; top:18px; left:50%; transform:translateX(-50%); font-size:10px; letter-spacing:.4em; opacity:.4; }
-    .pulse-you { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); display:grid; place-items:center; gap:3px; text-align:center; }
-.pulse-friend-label {
-  position:fixed; left:0; top:0;
-  width:110px; height:110px;
-  text-align:center;
-  will-change:transform,opacity;
-}
-.pulse-friend-initials {
-  position:absolute; left:50%; top:50%;
-  transform:translate(-50%,-50%);
-  width:44px; height:44px;
-  display:grid; place-items:center;
-  border-radius:999px;
-  background:rgba(255,255,255,.15);
-  backdrop-filter:blur(7px);
-  font-size:13px; font-weight:700;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
-}
-.pulse-friend-name {
-  position:absolute; left:50%; top:calc(50% + 34px);
-  transform:translateX(-50%);
-  font-size:13px; font-weight:600;
-  white-space:nowrap;
-  opacity:1;
-  text-shadow:
-    0 0 8px rgba(0,0,0,1),
-    0 1px 3px rgba(0,0,0,0.9),
-    0 0 16px rgba(0,0,0,0.7);
-  letter-spacing: 0.02em;
-}
-.pulse-friend-meta {
-  position:absolute; left:50%; top:calc(50% + 50px);
-  transform:translateX(-50%);
-  font-size:11px; font-weight:500;
-  opacity:1;
-  white-space:nowrap;
-  color: rgba(255,255,255,0.85);
-  text-shadow:
-    0 0 6px rgba(0,0,0,1),
-    0 1px 3px rgba(0,0,0,0.9);
-  letter-spacing: 0.01em;
-}
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #020304;
+      color: white;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    .pulse-canvas,
+    .pulse-overlay {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .pulse-overlay {
+      pointer-events: none;
+      z-index: 2;
+    }
+    .pulse-title {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      letter-spacing: .4em;
+      opacity: .4;
+    }
+    .pulse-you {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      display: grid;
+      place-items: center;
+      gap: 3px;
+      text-align: center;
+    }
 
+    /* ── Friend labels ───────────────────────────────────────────────────── */
+    /*
+     * Der Container hat width:0 / height:0.
+     * translate3d(x, y, 0) in updateLabels() setzt den Ursprung exakt
+     * auf den Orb-Mittelpunkt. Alle Kinder positionieren sich relativ dazu.
+     */
+    .pulse-friend-label {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 0;
+      height: 0;
+      text-align: center;
+      will-change: transform, opacity;
+    }
+
+    /* Initialen-Kreis – zentriert auf dem Orb-Mittelpunkt */
+    .pulse-friend-initials {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform: translate(-50%, -50%);
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(7px);
+      font-size: 13px;
+      font-weight: 700;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Name – direkt unter dem Orb (22px Radius + 6px Abstand) */
+    .pulse-friend-name {
+      position: absolute;
+      left: 0;
+      top: 28px;
+      transform: translateX(-50%);
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      opacity: 1;
+      text-shadow:
+        0 0 8px  rgba(0, 0, 0, 1),
+        0 1px 3px rgba(0, 0, 0, 0.9),
+        0 0 16px rgba(0, 0, 0, 0.7);
+      letter-spacing: 0.02em;
+    }
+
+    /* Distanz – direkt unter dem Namen */
+    .pulse-friend-meta {
+      position: absolute;
+      left: 0;
+      top: 46px;
+      transform: translateX(-50%);
+      font-size: 11px;
+      font-weight: 500;
+      opacity: 1;
+      white-space: nowrap;
+      color: rgba(255, 255, 255, 0.85);
+      text-shadow:
+        0 0 6px  rgba(0, 0, 0, 1),
+        0 1px 3px rgba(0, 0, 0, 0.9);
+      letter-spacing: 0.01em;
+    }
   `;
   document.head.appendChild(style);
 }
