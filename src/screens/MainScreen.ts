@@ -165,8 +165,10 @@ async function poll(): Promise<void> {
 
   const waiting = document.getElementById('waiting-msg');
   if (!members || members.length === 0) {
+    friends.length = 0;
+    renderer?.refreshFriendUi();
     if (waiting) waiting.style.display = 'block';
-    return; // friends array NICHT leeren
+    return;
   }
   if (waiting) waiting.style.display = 'none';
 
