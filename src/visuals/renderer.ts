@@ -49,6 +49,9 @@ export class PulseRenderer {
   private readonly mergeLevels  = new Map<number, number>();
   private readonly isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
   private readonly dpr = Math.min(window.devicePixelRatio || 1, this.isMobile ? 1 : 1.5);
+  private readonly uniformCache = new Map<string, WebGLUniformLocation | null>();
+  private readonly uniformProgramIds = new WeakMap<WebGLProgram, number>();
+  private nextUniformProgramId = 0;
   private width  = 1;
   private height = 1;
   private start  = 0;
@@ -97,6 +100,19 @@ export class PulseRenderer {
   refreshFriendUi(): void { this.rebuildLabels(); }
 
   getViewport(): ViewportSize { return { width: this.width, height: this.height }; }
+
+  private ul(program: WebGLProgram, name: string): WebGLUniformLocation | null {
+    let programId = this.uniformProgramIds.get(program);
+    if (programId === undefined) {
+      programId = ++this.nextUniformProgramId;
+      this.uniformProgramIds.set(program, programId);
+    }
+    const key = `${programId}___${name}`;
+    if (!this.uniformCache.has(key)) {
+      this.uniformCache.set(key, this.gl.getUniformLocation(program, name));
+    }
+    return this.uniformCache.get(key) ?? null;
+  }
 
   private readonly resize = (): void => {
     this.width  = window.innerWidth;
@@ -177,7 +193,7 @@ export class PulseRenderer {
     gl.useProgram(this.gravityFieldProgram);
     this.bindQuad(this.gravityFieldProgram);
 
-    const loc = (n: string) => gl.getUniformLocation(this.gravityFieldProgram, n);
+    const loc = (n: string) => this.ul(this.gravityFieldProgram, n);
     gl.uniform1f(loc('uTime'),             time);
     gl.uniform2f(loc('uRes'),              this.canvas.width, this.canvas.height);
     gl.uniform1i(loc('uOrbCount'),         count);
@@ -277,7 +293,7 @@ export class PulseRenderer {
     }
 
     const p  = this.mergedOrbsProgram;
-    const ul = (n: string) => gl.getUniformLocation(p, n);
+    const ul = (n: string) => this.ul(p, n);
     gl.uniform1f(ul('uTime'),            time);
     gl.uniform1f(ul('uSmoothness'),      MERGE_SMOOTHNESS);
     gl.uniform1i(ul('uFriendCount'),     friendsToDraw.length);
@@ -302,7 +318,7 @@ export class PulseRenderer {
 
   private setBackgroundUniforms(time: number): void {
     const gl = this.gl;
-    const ul = (n: string) => gl.getUniformLocation(this.backgroundProgram, n);
+    const ul = (n: string) => this.ul(this.backgroundProgram, n);
     gl.uniform1f(ul('uTime'), time);
     gl.uniform2f(ul('uRes'),  this.canvas.width, this.canvas.height);
     gl.uniform3fv(ul('uBase'),    theme.background.base);
@@ -323,7 +339,8 @@ export class PulseRenderer {
         translate(-50%, -50%)
         scale(${scale})
       `;
-      parts.root.style.opacity   = String(0.25 + friend.density * 0.75);
+      parts.root.style.opacity   = String(0.55 + friend.density * 0.45);
+      parts.root.style.zIndex    = String(Math.round(friend.density * 10));
       parts.meta.textContent     = friendDistanceLabel(friend);
     }
   }
@@ -358,7 +375,7 @@ export class PulseRenderer {
     title.textContent = 'PULSE';
     const you = document.createElement('div');
     you.className = 'pulse-you';
-    you.innerHTML = `YOU<br><span style="font-size:9px;opacity:.5">centered</span>`;
+    you.innerHTML = `YOU`;
     this.overlay.append(title, you);
   }
 
@@ -457,20 +474,19 @@ function smoothstep(value: number): number {
   return x * x * (3 - 2 * x);
 }
 
-let stylesInjected = false;
 function injectRendererStyles(): void {
-  if (stylesInjected) return;
-  stylesInjected = true;
+  if (document.getElementById('pulse-renderer-styles')) return;
   const style = document.createElement('style');
+  style.id = 'pulse-renderer-styles';
   style.textContent = `
     body { margin:0; overflow:hidden; background:#020304; color:white; font-family:Inter,system-ui,sans-serif; }
     .pulse-canvas, .pulse-overlay { position:fixed; inset:0; width:100%; height:100%; }
     .pulse-overlay { pointer-events:none; z-index:2; }
     .pulse-title { position:fixed; top:18px; left:50%; transform:translateX(-50%); font-size:10px; letter-spacing:.4em; opacity:.4; }
     .pulse-you { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); display:grid; place-items:center; gap:3px; text-align:center; }
-    .pulse-friend-label {
+.pulse-friend-label {
   position:fixed; left:0; top:0;
-  width:100px; height:100px;
+  width:110px; height:110px;
   text-align:center;
   will-change:transform,opacity;
 }
@@ -486,7 +502,7 @@ function injectRendererStyles(): void {
   text-shadow: 0 1px 4px rgba(0,0,0,0.8);
 }
 .pulse-friend-name {
-  position:absolute; left:50%; top:calc(50% + 28px);
+  position:absolute; left:50%; top:calc(50% + 34px);
   transform:translateX(-50%);
   font-size:13px; font-weight:600;
   white-space:nowrap;
@@ -498,7 +514,7 @@ function injectRendererStyles(): void {
   letter-spacing: 0.02em;
 }
 .pulse-friend-meta {
-  position:absolute; left:50%; top:calc(50% + 44px);
+  position:absolute; left:50%; top:calc(50% + 50px);
   transform:translateX(-50%);
   font-size:11px; font-weight:500;
   opacity:1;
