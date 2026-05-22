@@ -352,10 +352,36 @@ export class PulseRenderer {
       root.className = 'pulse-friend-label';
 
       const initials = document.createElement('div');
-      initials.className   = 'pulse-friend-initials';
-      initials.textContent = initialsFor(friend.name);
-      initials.style.borderColor = rgbCss(tone.rim, 0.26);
-      initials.style.boxShadow   = `0 0 24px ${rgbCss(tone.glow, 0.18)}`;
+      initials.className = 'pulse-friend-initials';
+      initials.style.borderColor = rgbCss(tone.rim, 0.5);
+      initials.style.boxShadow   = `0 0 24px ${rgbCss(tone.glow, 0.35)}`;
+
+      if (friend.avatarUrl) {
+        // ── Profilbild: <img> innerhalb des Kreises ──────────────────────
+        initials.style.background = 'transparent';
+        initials.style.overflow   = 'hidden';
+        initials.style.padding    = '0';
+
+        const img = document.createElement('img');
+        img.src   = friend.avatarUrl;
+        img.style.cssText = `
+          width: 100%; height: 100%;
+          object-fit: cover;
+          border-radius: 999px;
+          display: block;
+        `;
+        // Fallback auf Initialen wenn Bild nicht lädt
+        img.onerror = () => {
+          img.remove();
+          initials.style.background = 'rgba(255,255,255,0.15)';
+          initials.textContent = initialsFor(friend.name);
+        };
+        initials.appendChild(img);
+      } else {
+        // ── Kein Bild: Initialen anzeigen ────────────────────────────────
+        initials.style.background = 'rgba(255,255,255,0.15)';
+        initials.textContent = initialsFor(friend.name);
+      }
 
       const name = document.createElement('div');
       name.className   = 'pulse-friend-name';
@@ -533,7 +559,7 @@ function injectRendererStyles(): void {
       will-change: transform, opacity;
     }
 
-    /* Initialen-Kreis – zentriert auf dem Orb-Mittelpunkt */
+    /* Initialen-Kreis / Avatar – zentriert auf dem Orb-Mittelpunkt */
     .pulse-friend-initials {
       position: absolute;
       left: 0;
@@ -544,11 +570,20 @@ function injectRendererStyles(): void {
       display: grid;
       place-items: center;
       border-radius: 999px;
+      overflow: hidden;
       background: rgba(255, 255, 255, 0.15);
       backdrop-filter: blur(7px);
       font-size: 13px;
       font-weight: 700;
       text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Profilbild – füllt den Kreis komplett */
+    .pulse-friend-initials img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
 
     /* Name – direkt unter dem Orb (22px Radius + 6px Abstand) */
