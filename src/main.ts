@@ -1,6 +1,6 @@
 import { initAuth, isProfileComplete, getCurrentRoomId } from './auth';
 
-export type Screen = 'permission' | 'login' | 'lobby' | 'main';
+export type Screen = 'permission' | 'lobby' | 'main';
 
 export async function navigateTo(screen: Screen): Promise<void> {
   const app = document.getElementById('app')!;
@@ -9,9 +9,6 @@ export async function navigateTo(screen: Screen): Promise<void> {
   if (screen === 'permission') {
     const { mountPermissionScreen } = await import('./screens/PermissionScreen');
     mountPermissionScreen(app);
-  } else if (screen === 'login') {
-    const { mountLoginScreen } = await import('./screens/LoginScreen');
-    mountLoginScreen(app);
   } else if (screen === 'lobby') {
     const { mountLobbyScreen } = await import('./screens/LobbyScreen');
     mountLobbyScreen(app);
@@ -34,11 +31,6 @@ async function boot(): Promise<void> {
 
   if (!permissionGranted) {
     navigateTo('permission');
-    return;
-  }
-
-  if (!isProfileComplete()) {
-    navigateTo('login');
     return;
   }
 
