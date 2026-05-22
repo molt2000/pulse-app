@@ -442,10 +442,48 @@ function injectRendererStyles(): void {
     .pulse-overlay { pointer-events:none; z-index:2; }
     .pulse-title { position:fixed; top:18px; left:50%; transform:translateX(-50%); font-size:10px; letter-spacing:.4em; opacity:.4; }
     .pulse-you { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); display:grid; place-items:center; gap:3px; text-align:center; }
-    .pulse-friend-label { position:fixed; left:0; top:0; width:86px; height:86px; text-align:center; will-change:transform,opacity; }
-    .pulse-friend-initials { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:40px; height:40px; display:grid; place-items:center; border-radius:999px; background:rgba(255,255,255,.12); backdrop-filter:blur(7px); font-size:11px; font-weight:700; }
-    .pulse-friend-name { position:absolute; left:50%; top:calc(50% + 25px); transform:translateX(-50%); font-size:11px; white-space:nowrap; opacity:.8; }
-    .pulse-friend-meta { position:absolute; left:50%; top:calc(50% + 40px); transform:translateX(-50%); font-size:9px; opacity:.45; white-space:nowrap; }
+    .pulse-friend-label {
+  position:fixed; left:0; top:0;
+  width:100px; height:100px;
+  text-align:center;
+  will-change:transform,opacity;
+}
+.pulse-friend-initials {
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  width:44px; height:44px;
+  display:grid; place-items:center;
+  border-radius:999px;
+  background:rgba(255,255,255,.15);
+  backdrop-filter:blur(7px);
+  font-size:13px; font-weight:700;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+}
+.pulse-friend-name {
+  position:absolute; left:50%; top:calc(50% + 28px);
+  transform:translateX(-50%);
+  font-size:13px; font-weight:600;
+  white-space:nowrap;
+  opacity:1;
+  text-shadow:
+    0 0 8px rgba(0,0,0,1),
+    0 1px 3px rgba(0,0,0,0.9),
+    0 0 16px rgba(0,0,0,0.7);
+  letter-spacing: 0.02em;
+}
+.pulse-friend-meta {
+  position:absolute; left:50%; top:calc(50% + 44px);
+  transform:translateX(-50%);
+  font-size:11px; font-weight:500;
+  opacity:1;
+  white-space:nowrap;
+  color: rgba(255,255,255,0.85);
+  text-shadow:
+    0 0 6px rgba(0,0,0,1),
+    0 1px 3px rgba(0,0,0,0.9);
+  letter-spacing: 0.01em;
+}
+
   `;
   document.head.appendChild(style);
 }
