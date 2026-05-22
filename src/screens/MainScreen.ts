@@ -12,6 +12,11 @@ let myLat:        number | null = null;
 let myLng:        number | null = null;
 let isGhost = false;
 
+function logSupabaseError(context: string, error: unknown): void {
+  if (!error) return;
+  console.error(`[Pulse] ${context}:`, error);
+}
+
 export function mountMainScreen(app: HTMLElement): void {
   app.innerHTML = `
     <div id="pulse-main">
@@ -23,6 +28,9 @@ export function mountMainScreen(app: HTMLElement): void {
       <div id="pulse-app"></div>
       <div class="main-waiting" id="waiting-msg" style="display:none">
         share the code with friends
+      </div>
+      <div class="main-gps-error" id="gps-error" style="display:none">
+        GPS signal lost
       </div>
     </div>
   `;
@@ -36,7 +44,7 @@ export function mountMainScreen(app: HTMLElement): void {
   const roomId = getCurrentRoomId();
   loadRoomCode(roomId);
   startTracking();
-  pollInterval = setInterval(() => poll(), 10000);
+  startPollInterval();
   poll();
 
   document.getElementById('leave-btn')!.addEventListener('click', async () => {
@@ -49,17 +57,19 @@ export function mountMainScreen(app: HTMLElement): void {
     isGhost = !isGhost;
     const btn = document.getElementById('ghost-btn')!;
     btn.style.opacity = isGhost ? '1' : '0.35';
-    await supabase
+    const { error: ghostError } = await supabase
       .from('room_members')
       .update({ is_ghost: isGhost })
       .eq('room_id', roomId)
       .eq('user_id', getUserId());
+    logSupabaseError('ghost update', ghostError);
 
     if (isGhost) {
-      await supabase
+      const { error: locationDeleteError } = await supabase
         .from('locations')
         .delete()
         .eq('user_id', getUserId());
+      logSupabaseError('ghost location delete', locationDeleteError);
     }
   });
 
@@ -89,28 +99,55 @@ function startTracking(): void {
       myLng = pos.coords.longitude;
       if (!isGhost) pushLocation();
     },
-    (err) => console.warn('[Pulse] GPS error:', err),
+    (err) => {
+      console.warn('[Pulse] GPS error:', err);
+      const gpsErr = document.getElementById('gps-error');
+      if (gpsErr) gpsErr.style.display = 'block';
+      setTimeout(() => {
+        if (gpsErr) gpsErr.style.display = 'none';
+      }, 5000);
+    },
     { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
   );
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') poll();
+    if (document.visibilityState === 'visible') {
+      poll();
+      startPollInterval();
+    } else {
+      stopPollInterval();
+    }
   });
+}
+
+function startPollInterval(): void {
+  if (pollInterval) return;
+  pollInterval = setInterval(() => poll(), 10000);
+}
+
+function stopPollInterval(): void {
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
 }
 
 async function pushLocation(): Promise<void> {
   if (myLat === null || myLng === null || isGhost) return;
   const roomId = getCurrentRoomId();
-  await supabase.from('locations').upsert({
+  const { error: locError } = await supabase.from('locations').upsert({
     user_id:    getUserId(),
     room_id:    roomId,
     lat:        myLat,
     lng:        myLng,
     updated_at: new Date().toISOString(),
   });
-  await supabase
+  logSupabaseError('location upsert', locError);
+
+  const { error: roomError } = await supabase
     .from('rooms')
     .update({ last_activity: new Date().toISOString() })
     .eq('id', roomId);
+  logSupabaseError('room activity update', roomError);
 }
 
 async function poll(): Promise<void> {
@@ -179,13 +216,17 @@ async function leaveRoom(): Promise<void> {
   const roomId = getCurrentRoomId();
   const userId = getUserId();
   if (watchId !== null)     navigator.geolocation.clearWatch(watchId);
-  if (pollInterval !== null) clearInterval(pollInterval);
-  await supabase.from('locations').delete().eq('user_id', userId);
-  await supabase
+  stopPollInterval();
+  const { error: locationDeleteError } = await supabase.from('locations').delete().eq('user_id', userId);
+  logSupabaseError('leave location delete', locationDeleteError);
+
+  const { error: memberDeleteError } = await supabase
     .from('room_members')
     .delete()
     .eq('room_id', roomId)
     .eq('user_id', userId);
+  logSupabaseError('leave member delete', memberDeleteError);
+
   clearCurrentRoom();
   friends.length = 0;
   if (renderer) {
@@ -236,6 +277,12 @@ function injectStyles(): void {
       position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
       font-size: 11px; opacity: 0.25; letter-spacing: 0.08em;
       font-family: Inter, system-ui, sans-serif; color: white;
+      white-space: nowrap; z-index: 10;
+    }
+    .main-gps-error {
+      position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%);
+      font-size: 11px; color: rgba(255,80,80,0.85); letter-spacing: 0.05em;
+      font-family: Inter, system-ui, sans-serif;
       white-space: nowrap; z-index: 10;
     }
   `;
