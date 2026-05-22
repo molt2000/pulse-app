@@ -12,7 +12,7 @@ export interface ViewportSize {
   height: number;
 }
 
-export const friends: Friend[] = [
+export const friends: Friend[] = import.meta.env.DEV ? [
   { id: 0, name: 'Alex', density: 0.9, bearing: 0, colorIdx: 0, active: true },
   { id: 1, name: 'Sam', density: 0.4, bearing: 36, colorIdx: 1, active: true },
   { id: 2, name: 'Jordan', density: 0.7, bearing: 72, colorIdx: 2, active: true },
@@ -23,7 +23,8 @@ export const friends: Friend[] = [
   { id: 7, name: 'Drew', density: 0.5, bearing: 252, colorIdx: 7, active: true },
   { id: 8, name: 'Quinn', density: 0.3, bearing: 288, colorIdx: 8, active: true },
   { id: 9, name: 'Avery', density: 0.75, bearing: 324, colorIdx: 9, active: true },
-];
+] : [];
+
 
 const ORB_REACH = 0.76;
 const VERTICAL_SQUEEZE = 0.72; // pulls top/bottom orbs closer in, leave left/right unchanged
