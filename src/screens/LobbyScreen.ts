@@ -1,6 +1,9 @@
 import { navigateTo } from '../main';
 import { getUserId, getUserName, setUserName, setAvatarUrl, getAvatarUrl, setCurrentRoomId, isProfileComplete } from '../auth';
 import { supabase } from '../supabase';
+import { PulseRenderer } from '../visuals/renderer';
+
+let bgRenderer: PulseRenderer | null = null;
 
 export function mountLobbyScreen(app: HTMLElement): void {
   const userId = getUserId();
@@ -55,6 +58,14 @@ export function mountLobbyScreen(app: HTMLElement): void {
       <div class="lobby-error" id="lobby-error"></div>
     </div>
   `;
+
+  if (bgRenderer) {
+    bgRenderer.destroy();
+    bgRenderer = null;
+  }
+
+  bgRenderer = new PulseRenderer(app, []);
+  bgRenderer.startRendering();
 
   injectStyles();
 
@@ -256,12 +267,9 @@ function injectStyles(): void {
       align-items: center;
       justify-content: center;
       gap: 20px;
-      background:
-        repeating-linear-gradient(0deg, rgba(180,20,20,0.10) 0px, transparent 1px, transparent 60px),
-        repeating-linear-gradient(90deg, rgba(180,20,20,0.10) 0px, transparent 1px, transparent 60px),
-        #020304;
       color: white;
       font-family: Inter, system-ui, sans-serif;
+      z-index: 1;
     }
 
     .lobby-title {
@@ -273,6 +281,11 @@ function injectStyles(): void {
       letter-spacing: .4em;
       opacity: .4;
       color: white;
+      z-index: 2;
+    }
+
+    .lobby-screen ~ .pulse-overlay {
+      display: none;
     }
 
     .lobby-avatar-wrap {
