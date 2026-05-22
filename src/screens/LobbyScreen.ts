@@ -78,8 +78,9 @@ export function mountLobbyScreen(app: HTMLElement): void {
       .upload(path, resized, { upsert: true, contentType: 'image/jpeg' });
     if (error) { errorEl.textContent = 'upload failed'; return; }
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-    setAvatarUrl(data.publicUrl);
-    avatarPreview.innerHTML = `<img src="${data.publicUrl}" />`;
+    const avatarUrl = `${data.publicUrl}?v=${Date.now()}`;
+    setAvatarUrl(avatarUrl);
+    avatarPreview.innerHTML = `<img src="${avatarUrl}" />`;
   });
 
   // Name change → update avatar initial live

@@ -4,17 +4,23 @@ const USER_ID_KEY = 'pulse_user_id';
 const USER_NAME_KEY = 'pulse_user_name';
 const USER_AVATAR_KEY = 'pulse_avatar_url';
 
-export async function initAuth(): Promise<string> {
-  let userId = localStorage.getItem(USER_ID_KEY);
+export async function initAuth(): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (!userId) {
-    const { data, error } = await supabase.auth.signInAnonymously();
-    if (error || !data.user) throw new Error('Auth failed');
-    userId = data.user.id;
-    localStorage.setItem(USER_ID_KEY, userId);
+  if (session) {
+    localStorage.setItem(USER_ID_KEY, session.user.id);
+    return;
   }
 
-  return userId;
+  const existingId = localStorage.getItem(USER_ID_KEY);
+  const { data, error } = await supabase.auth.signInAnonymously();
+  if (error || !data.user) throw new Error('Auth failed');
+
+  if (existingId !== data.user.id) {
+    localStorage.removeItem(USER_NAME_KEY);
+    localStorage.removeItem(USER_AVATAR_KEY);
+  }
+  localStorage.setItem(USER_ID_KEY, data.user.id);
 }
 
 export function getUserId(): string {

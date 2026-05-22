@@ -19,7 +19,12 @@ export async function navigateTo(screen: Screen): Promise<void> {
 }
 
 async function boot(): Promise<void> {
-  await initAuth();
+  try {
+    await initAuth();
+  } catch (err) {
+    console.error('[Pulse] boot auth failed:', err);
+    return;
+  }
 
   let permissionGranted = false;
   try {
@@ -30,16 +35,16 @@ async function boot(): Promise<void> {
   }
 
   if (!permissionGranted) {
-    navigateTo('permission');
+    await navigateTo('permission');
     return;
   }
 
   if (getCurrentRoomId()) {
-    navigateTo('main');
+    await navigateTo('main');
     return;
   }
 
-  navigateTo('lobby');
+  await navigateTo('lobby');
 }
 
 boot();

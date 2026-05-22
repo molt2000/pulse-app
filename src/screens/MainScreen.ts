@@ -3,7 +3,7 @@ import { getUserId, getCurrentRoomId, clearCurrentRoom } from '../auth';
 import { supabase } from '../supabase';
 import { friends } from '../state';
 import { PulseRenderer } from '../visuals/renderer';
-import { distanceMeters, densityFromDistance, bearingDegrees, colorIdxFromUserId } from '../proximity';
+import { distanceMeters, densityFromDistance, bearingDegrees, colorIdxFromUserId, stableIdFromUserId } from '../proximity';
 
 let renderer:     PulseRenderer | null = null;
 let pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -54,6 +54,13 @@ export function mountMainScreen(app: HTMLElement): void {
       .update({ is_ghost: isGhost })
       .eq('room_id', roomId)
       .eq('user_id', getUserId());
+
+    if (isGhost) {
+      await supabase
+        .from('locations')
+        .delete()
+        .eq('user_id', getUserId());
+    }
   });
 
   if (import.meta.env.DEV) {
@@ -142,7 +149,7 @@ async function poll(): Promise<void> {
   friends.length = 0;
   const now = Date.now();
 
-  locs?.forEach((loc: any, index: number) => {
+  locs?.forEach((loc: any) => {
     const lastSeen = new Date(loc.updated_at).getTime();
     if (now - lastSeen > 30000) return;
 
@@ -155,7 +162,7 @@ async function poll(): Promise<void> {
     const colorIdx = colorIdxFromUserId(loc.user_id);
 
     friends.push({
-      id:        index,
+      id:        stableIdFromUserId(loc.user_id),
       name:      user.name,
       avatarUrl: user.avatar_url ?? null,   // ← NEU: Profilbild weitergeben
       density,

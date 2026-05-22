@@ -36,3 +36,9 @@ export function colorIdxFromUserId(userId: string): number {
   for (const c of userId) hash = (hash * 31 + c.charCodeAt(0)) & 0xffffffff;
   return Math.abs(hash) % 10;
 }
+
+export function stableIdFromUserId(userId: string): number {
+  let hash = 0;
+  for (const c of userId) hash = (hash * 2654435761 + c.charCodeAt(0)) >>> 0;
+  return hash;
+}

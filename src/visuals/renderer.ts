@@ -83,7 +83,7 @@ export class PulseRenderer {
     this.quadBuffer          = this.createQuad();
 
     this.createStaticUi();
-    this.rebuildLabels();
+    this.refreshFriendUi();
     this.resize();
     window.addEventListener('resize', this.resize);
   }
@@ -97,7 +97,28 @@ export class PulseRenderer {
     this.overlay.remove();
   }
 
-  refreshFriendUi(): void { this.rebuildLabels(); }
+  refreshFriendUi(): void {
+    const existingIds = new Set(this.labels.keys());
+    const newIds = new Set(this.friends.map((friend) => friend.id));
+
+    for (const id of existingIds) {
+      if (!newIds.has(id)) {
+        this.labels.get(id)?.root.remove();
+        this.labels.delete(id);
+        this.positions.delete(id);
+        this.mergeLevels.delete(id);
+        this.visualPositions.delete(id);
+      }
+    }
+
+    for (const friend of this.friends) {
+      if (!this.labels.has(friend.id)) {
+        this.buildLabel(friend);
+      } else {
+        this.patchLabel(friend);
+      }
+    }
+  }
 
   getViewport(): ViewportSize { return { width: this.width, height: this.height }; }
 
@@ -343,57 +364,72 @@ export class PulseRenderer {
     }
   }
 
-  private rebuildLabels(): void {
-    for (const label of this.labels.values()) label.root.remove();
-    this.labels.clear();
-    for (const friend of this.friends) {
-      const tone     = toneFor(friend.colorIdx);
-      const root     = document.createElement('div');
-      root.className = 'pulse-friend-label';
+  private buildLabel(friend: Friend): void {
+    const tone = toneFor(friend.colorIdx);
+    const root = document.createElement('div');
+    root.className = 'pulse-friend-label';
 
-      const initials = document.createElement('div');
-      initials.className = 'pulse-friend-initials';
-      initials.style.borderColor = rgbCss(tone.rim, 0.5);
-      initials.style.boxShadow   = `0 0 24px ${rgbCss(tone.glow, 0.35)}`;
+    const initials = document.createElement('div');
+    initials.className = 'pulse-friend-initials';
+    initials.style.borderColor = rgbCss(tone.rim, 0.5);
+    initials.style.boxShadow = `0 0 24px ${rgbCss(tone.glow, 0.35)}`;
 
-      if (friend.avatarUrl) {
-        // ── Profilbild: <img> innerhalb des Kreises ──────────────────────
-        initials.style.background = 'transparent';
-        initials.style.overflow   = 'hidden';
-        initials.style.padding    = '0';
+    this.applyAvatarOrInitials(initials, friend);
 
-        const img = document.createElement('img');
-        img.src   = friend.avatarUrl;
-        img.style.cssText = `
-          width: 100%; height: 100%;
-          object-fit: cover;
-          border-radius: 999px;
-          display: block;
-        `;
-        // Fallback auf Initialen wenn Bild nicht lädt
-        img.onerror = () => {
-          img.remove();
-          initials.style.background = 'rgba(255,255,255,0.15)';
-          initials.textContent = initialsFor(friend.name);
-        };
-        initials.appendChild(img);
-      } else {
-        // ── Kein Bild: Initialen anzeigen ────────────────────────────────
-        initials.style.background = 'rgba(255,255,255,0.15)';
-        initials.textContent = initialsFor(friend.name);
-      }
+    const name = document.createElement('div');
+    name.className = 'pulse-friend-name';
+    name.textContent = friend.name;
 
-      const name = document.createElement('div');
-      name.className   = 'pulse-friend-name';
-      name.textContent = friend.name;
+    const meta = document.createElement('div');
+    meta.className = 'pulse-friend-meta';
+    meta.textContent = friendDistanceLabel(friend);
 
-      const meta = document.createElement('div');
-      meta.className   = 'pulse-friend-meta';
-      meta.textContent = friendDistanceLabel(friend);
+    root.append(initials, name, meta);
+    this.overlay.appendChild(root);
+    this.labels.set(friend.id, { root, initials, name, meta });
+  }
 
-      root.append(initials, name, meta);
-      this.overlay.appendChild(root);
-      this.labels.set(friend.id, { root, initials, name, meta });
+  private patchLabel(friend: Friend): void {
+    const parts = this.labels.get(friend.id);
+    if (!parts) return;
+
+    parts.name.textContent = friend.name;
+    parts.meta.textContent = friendDistanceLabel(friend);
+
+    const currentUrl = parts.initials.dataset.avatarUrl ?? '';
+    const newUrl = friend.avatarUrl ?? '';
+    if (currentUrl !== newUrl) {
+      parts.initials.innerHTML = '';
+      this.applyAvatarOrInitials(parts.initials, friend);
+    } else if (!newUrl || parts.initials.dataset.avatarFailed === 'true') {
+      parts.initials.textContent = initialsFor(friend.name);
+    }
+  }
+
+  private applyAvatarOrInitials(container: HTMLDivElement, friend: Friend): void {
+    container.dataset.avatarUrl = friend.avatarUrl ?? '';
+    container.dataset.avatarFailed = '';
+
+    if (friend.avatarUrl) {
+      container.style.background = 'transparent';
+      container.style.overflow = 'hidden';
+      container.style.padding = '0';
+
+      const img = document.createElement('img');
+      img.src = friend.avatarUrl;
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;';
+      img.onerror = () => {
+        img.remove();
+        container.dataset.avatarFailed = 'true';
+        container.style.background = 'rgba(255,255,255,0.15)';
+        container.textContent = initialsFor(friend.name);
+      };
+      container.appendChild(img);
+    } else {
+      container.style.background = 'rgba(255,255,255,0.15)';
+      container.style.overflow = 'hidden';
+      container.style.padding = '';
+      container.textContent = initialsFor(friend.name);
     }
   }
 
