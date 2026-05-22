@@ -26,7 +26,7 @@ export function mountPermissionScreen(app: HTMLElement): void {
           timeout: 10000,
         });
       });
-      navigateTo('login');
+      navigateTo('lobby');
     } catch {
       error.textContent = 'location required to use pulse';
       btn.textContent = 'ALLOW LOCATION';
