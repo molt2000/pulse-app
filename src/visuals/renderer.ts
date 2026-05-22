@@ -203,10 +203,18 @@ export class PulseRenderer {
     const target  = friendScreenPosition(friend.bearing, this.getViewport());
     const current = this.smoothPosition(friend.id, target);
     const float_  = this.friendFloat(friend.id, time, friend.density);
-    const merged  = this.applyUserMerge(friend, {
+    const meters = proximityMeters(friend.density);
+    const pull   = softGravityPull(meters);
+    const user   = this.userPoint();
+    const floated = {
       x: current.x + float_.x,
       y: current.y + float_.y,
-    });
+    };
+    const softPulled = {
+      x: floated.x + (user.x - floated.x) * pull,
+      y: floated.y + (user.y - floated.y) * pull,
+    };
+    const merged = this.applyUserMerge(friend, softPulled);
     this.visualPositions.set(friend.id, merged);
     return merged;
   }
@@ -420,6 +428,24 @@ export class PulseRenderer {
     gl.enableVertexAttribArray(attr);
     gl.vertexAttribPointer(attr, 2, gl.FLOAT, false, 0, 0);
   }
+}
+
+/**
+ * Returns a 0-1 pull factor that starts gently at 250 m and ramps up
+ * more steeply below 100 m. The merge effect (< ~100 m) is handled
+ * separately in applyUserMerge(), so we cap this pull to not interfere.
+ */
+function softGravityPull(meters: number): number {
+  if (meters >= 250) return 0;
+  if (meters <= 0) return 0.28;
+
+  if (meters > 100) {
+    const t = 1 - (meters - 100) / 150;
+    return smoothstep(t) * 0.08;
+  }
+
+  const t = 1 - meters / 100;
+  return 0.08 + smoothstep(t) * 0.20;
 }
 
 function proximityMeters(density: number): number {
