@@ -14,7 +14,7 @@ export function distanceMeters(
 }
 
 export function densityFromDistance(meters: number): number {
-  return Math.max(0, Math.min(1, 1 - meters / 1000));
+  return Math.max(0, Math.min(1, 1 - meters / 500));
 }
 
 export function bearingDegrees(

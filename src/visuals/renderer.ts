@@ -355,12 +355,13 @@ export class PulseRenderer {
       const position = this.visualPositions.get(friend.id)
                     ?? this.visualFriendPoint(friend, time);
       const scale    = 0.96 + friend.density * 0.08 + Math.sin(time * 0.55 + friend.id) * 0.018;
-      // translate3d bringt den Ursprung exakt auf den Orb-Mittelpunkt.
-      // Da der Container width:0/height:0 hat, brauchen wir kein translate(-50%,-50%) mehr.
       parts.root.style.transform = `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`;
-      parts.root.style.opacity   = String(0.55 + friend.density * 0.45);
+      parts.root.style.opacity   = String(0.2 + friend.density * 0.8);
       parts.root.style.zIndex    = String(Math.round(friend.density * 10));
-      parts.meta.textContent     = friendDistanceLabel(friend);
+      const textOpacity = Math.max(0, Math.min(1, (friend.density - 0.2) / 0.2));
+      parts.name.style.opacity = String(textOpacity);
+      parts.meta.style.opacity = String(textOpacity * 0.85);
+      parts.meta.textContent   = friendDistanceLabel(friend);
     }
   }
 
@@ -514,10 +515,10 @@ export class PulseRenderer {
  * separately in applyUserMerge(), so we cap this pull to not interfere.
  */
 function softGravityPull(meters: number): number {
-  if (meters >= 250) return 0;
+  if (meters >= 150) return 0;
   if (meters <= 0)   return 0.28;
   if (meters > 100) {
-    const t = 1 - (meters - 100) / 150;
+    const t = 1 - (meters - 100) / 50;
     return smoothstep(t) * 0.08;
   }
   const t = 1 - meters / 100;
@@ -525,7 +526,7 @@ function softGravityPull(meters: number): number {
 }
 
 function proximityMeters(density: number): number {
-  return Math.round((1 - Math.max(0, Math.min(1, density))) * 1000);
+  return Math.round((1 - Math.max(0, Math.min(1, density))) * 500);
 }
 
 function smoothstep(value: number): number {
