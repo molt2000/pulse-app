@@ -10,7 +10,7 @@ export interface Friend {
 
 export interface ViewportSize { width: number; height: number; }
 
-export const friends: Friend[] = import.meta.env.DEV
+const DEV_FRIENDS: Friend[] = import.meta.env.DEV
   ? [
     { id: 0, name: 'Alex',   avatarUrl: null, density: 0.9,  bearing: 0,   colorIdx: 0, active: true },
     { id: 1, name: 'Sam',    avatarUrl: null, density: 0.4,  bearing: 36,  colorIdx: 1, active: true },
@@ -24,6 +24,13 @@ export const friends: Friend[] = import.meta.env.DEV
     { id: 9, name: 'Avery',  avatarUrl: null, density: 0.75, bearing: 324, colorIdx: 9, active: true },
   ]
   : [];
+
+export const friends: Friend[] = [...DEV_FRIENDS];
+
+export function resetDevFriends(): void {
+  friends.length = 0;
+  friends.push(...DEV_FRIENDS.map(f => ({ ...f })));
+}
 
 const ORB_REACH        = 0.76;
 const VERTICAL_SQUEEZE = 0.72;

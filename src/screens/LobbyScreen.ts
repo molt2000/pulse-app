@@ -308,7 +308,7 @@ function injectStyles(): void {
       transition: border-color 200ms ease;
     }
 
-    .lobby-input::placeholder { color: white; opacity: 1; }
+    .lobby-input::placeholder { color: rgba(255,255,255,0.28); opacity: 1; }
     .lobby-input:focus { border-color: rgba(255,255,255,0.35); }
 
     .lobby-btn {
@@ -358,7 +358,7 @@ function injectStyles(): void {
       transition: border-color 200ms ease;
     }
 
-    .lobby-code-input::placeholder { color: white; opacity: 1; letter-spacing: 0.05em; }
+    .lobby-code-input::placeholder { color: rgba(255,255,255,0.28); opacity: 1; letter-spacing: 0.05em; }
     .lobby-code-input:focus { border-color: rgba(255,255,255,0.35); }
 
     .lobby-btn-small {

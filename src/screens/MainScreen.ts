@@ -1,16 +1,17 @@
 import { navigateTo } from '../main';
 import { getUserId, getCurrentRoomId, clearCurrentRoom } from '../auth';
 import { supabase } from '../supabase';
-import { friends } from '../state';
+import { friends, resetDevFriends } from '../state';
 import { PulseRenderer } from '../visuals/renderer';
 import { distanceMeters, densityFromDistance, bearingDegrees, colorIdxFromUserId, stableIdFromUserId } from '../proximity';
 
-let renderer:     PulseRenderer | null = null;
-let pollInterval: ReturnType<typeof setInterval> | null = null;
-let watchId:      number | null = null;
-let myLat:        number | null = null;
-let myLng:        number | null = null;
+let renderer:        PulseRenderer | null = null;
+let pollInterval:    ReturnType<typeof setInterval> | null = null;
+let watchId:         number | null = null;
+let myLat:           number | null = null;
+let myLng:           number | null = null;
 let isGhost = false;
+let debugKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 
 function logSupabaseError(context: string, error: unknown): void {
   if (!error) return;
@@ -39,6 +40,8 @@ export function mountMainScreen(app: HTMLElement): void {
   `;
 
   injectStyles();
+
+  if (import.meta.env.DEV) resetDevFriends();
 
   const pulseApp = document.getElementById('pulse-app')!;
   renderer = new PulseRenderer(pulseApp, friends);
@@ -262,6 +265,14 @@ async function leaveRoom(): Promise<void> {
 }
 
 function createDebugPanel(r: PulseRenderer): { panel: HTMLDivElement; trigger: HTMLButtonElement } {
+  // clean up previous mount
+  document.querySelector('.pulse-debug-panel')?.remove();
+  document.querySelector('.pulse-debug-trigger')?.remove();
+  if (debugKeyHandler) {
+    window.removeEventListener('keydown', debugKeyHandler);
+    debugKeyHandler = null;
+  }
+
   const panel = document.createElement('div');
   panel.className = 'pulse-debug-panel';
 
@@ -328,9 +339,8 @@ function createDebugPanel(r: PulseRenderer): { panel: HTMLDivElement; trigger: H
 
   const toggle = (): void => { panel.classList.toggle('is-open'); };
   trigger.addEventListener('click', toggle);
-  window.addEventListener('keydown', (event) => {
-    if (event.key.toLowerCase() === 'd') toggle();
-  });
+  debugKeyHandler = (event) => { if (event.key.toLowerCase() === 'd') toggle(); };
+  window.addEventListener('keydown', debugKeyHandler);
 
   injectDebugStyles();
   return { panel, trigger };
