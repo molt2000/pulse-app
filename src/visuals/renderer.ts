@@ -434,13 +434,10 @@ export class PulseRenderer {
   }
 
   private createStaticUi(): void {
-    const title = document.createElement('div');
-    title.className   = 'pulse-title';
-    title.textContent = 'PULSE';
     const you = document.createElement('div');
     you.className = 'pulse-you';
     you.innerHTML = `YOU`;
-    this.overlay.append(title, you);
+    this.overlay.append(you);
   }
 
   private smoothPosition(id: number, target: RenderPoint): RenderPoint {

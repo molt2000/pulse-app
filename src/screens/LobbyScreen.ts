@@ -11,8 +11,6 @@ export function mountLobbyScreen(app: HTMLElement): void {
 
   app.innerHTML = `
     <div class="lobby-screen">
-      <div class="lobby-title">PULSE</div>
-
       <!-- Avatar -->
       <div class="lobby-avatar-wrap">
         <div class="lobby-avatar" id="avatar-preview">
@@ -270,18 +268,6 @@ function injectStyles(): void {
       color: white;
       font-family: Inter, system-ui, sans-serif;
       z-index: 1;
-    }
-
-    .lobby-title {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 10px;
-      letter-spacing: .4em;
-      opacity: .4;
-      color: white;
-      z-index: 2;
     }
 
     .lobby-avatar-wrap {
