@@ -5,7 +5,7 @@ export function mountPermissionScreen(app: HTMLElement): void {
     <div class="perm-screen">
       <div class="perm-title">PULSE</div>
       <div class="perm-pulse-ring"></div>
-      <div class="perm-text">to find your friends,<br>pulse needs your location</div>
+      <div class="perm-text">to find your friends,<br>pulse needs your location and compass</div>
       <button class="perm-btn" id="allow-btn">ALLOW LOCATION</button>
       <div class="perm-error" id="perm-error"></div>
     </div>
@@ -15,22 +15,34 @@ export function mountPermissionScreen(app: HTMLElement): void {
 
   document.getElementById('allow-btn')!.addEventListener('click', async () => {
     const error = document.getElementById('perm-error')!;
-    const btn = document.getElementById('allow-btn') as HTMLButtonElement;
-    btn.disabled = true;
+    const btn   = document.getElementById('allow-btn') as HTMLButtonElement;
+    btn.disabled    = true;
     btn.textContent = '...';
 
-    try {
-      await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-        });
+    // Both permission requests must be initiated synchronously from the same
+    // user gesture — iOS only shows the system dialog when called from a tap.
+    // Kicking them off here (before any await) satisfies that requirement.
+    // The OS queues them: location dialog first, then orientation.
+    const motionPromise: Promise<string> =
+      typeof (DeviceOrientationEvent as any).requestPermission === 'function'
+        ? (DeviceOrientationEvent as any).requestPermission()
+        : Promise.resolve('granted');
+
+    const locationPromise = new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
       });
+    });
+
+    try {
+      await locationPromise;
+      await motionPromise; // may already be resolved or still awaiting user tap
       navigateTo('lobby');
     } catch {
       error.textContent = 'location required to use pulse';
-      btn.textContent = 'ALLOW LOCATION';
-      btn.disabled = false;
+      btn.textContent   = 'ALLOW LOCATION';
+      btn.disabled      = false;
     }
   });
 }

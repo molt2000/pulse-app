@@ -13,7 +13,7 @@ let myLat:           number | null = null;
 let myLng:           number | null = null;
 let isGhost = false;
 let debugKeyHandler: ((e: KeyboardEvent) => void) | null = null;
-let compass:         CompassManager | null = null;
+let compass: CompassManager | null = null;
 
 function logSupabaseError(context: string, error: unknown): void {
   if (!error) return;
@@ -123,22 +123,11 @@ function startCompass(): void {
   compass = new CompassManager();
   if (!compass.supported) return;
 
-  const activate = async (): Promise<void> => {
-    const ok = await compass!.enable();
-    if (ok) {
-      compass!.subscribe((heading) => renderer?.setHeading(heading));
-    }
-  };
-
-  if (compass.needsPermission) {
-    // iOS 13+: requestPermission() must come from a user gesture.
-    // We piggyback on the first touch — the user will tap the screen anyway.
-    document.addEventListener('touchstart', activate, { once: true, passive: true });
-    document.addEventListener('click',      activate, { once: true });
-  } else {
-    // Android / desktop: start immediately, no gesture required.
-    activate();
-  }
+  // On iOS the orientation permission was already requested in PermissionScreen
+  // alongside location — so enable() can be called directly here, no gesture needed.
+  compass.enable().then(ok => {
+    if (ok) compass!.subscribe(heading => renderer?.setHeading(heading));
+  });
 }
 
 function startTracking(): void {
