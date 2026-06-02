@@ -272,7 +272,8 @@ export class PulseRenderer {
     const user        = this.userPoint();
     const meters      = proximityMeters(friend.density);
     const targetLevel = this.targetMergeLevel(meters);
-    const previous    = this.mergeLevels.get(friend.id) ?? 0;
+    const stored      = this.mergeLevels.get(friend.id);
+    const previous    = stored ?? targetLevel;
     const ease        = MERGE_ANIMATION_EASE + targetLevel * 0.04;
     const level       = previous + (targetLevel - previous) * ease;
     this.mergeLevels.set(friend.id, level);
@@ -368,9 +369,9 @@ export class PulseRenderer {
                     ?? this.visualFriendPoint(friend, time);
       const scale    = 0.96 + friend.density * 0.08 + Math.sin(time * 0.55 + friend.id) * 0.018;
       parts.root.style.transform = `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`;
-      parts.root.style.opacity   = String(0.2 + friend.density * 0.8);
+      parts.root.style.opacity   = String(Math.min(1, friend.density * 2));
       parts.root.style.zIndex    = String(Math.round(friend.density * 10));
-      const textOpacity = Math.max(0, Math.min(1, (friend.density - 0.2) / 0.2));
+      const textOpacity = Math.max(0, Math.min(1, (friend.density - 0.15) / 0.25));
       parts.name.style.opacity = String(textOpacity);
       parts.meta.style.opacity = String(textOpacity * 0.85);
       parts.meta.textContent   = friendDistanceLabel(friend);
@@ -568,6 +569,7 @@ function injectRendererStyles(): void {
     .pulse-overlay {
       pointer-events: none;
       z-index: 2;
+      overflow: hidden;
     }
     .pulse-title {
       position: fixed;
