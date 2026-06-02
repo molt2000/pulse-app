@@ -4,6 +4,7 @@ import { supabase } from '../supabase';
 import { friends, resetDevFriends } from '../state';
 import { PulseRenderer } from '../visuals/renderer';
 import { distanceMeters, densityFromDistance, bearingDegrees, colorIdxFromUserId, stableIdFromUserId } from '../proximity';
+import { CompassManager } from '../hooks/useCompass';
 
 let renderer:        PulseRenderer | null = null;
 let pollInterval:    ReturnType<typeof setInterval> | null = null;
@@ -12,6 +13,7 @@ let myLat:           number | null = null;
 let myLng:           number | null = null;
 let isGhost = false;
 let debugKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+let compass:         CompassManager | null = null;
 
 function logSupabaseError(context: string, error: unknown): void {
   if (!error) return;
@@ -66,6 +68,7 @@ export function mountMainScreen(app: HTMLElement): void {
   });
 
   startTracking();
+  startCompass();
   startPollInterval();
   poll();
 
@@ -113,6 +116,28 @@ async function loadRoomCode(roomId: string): Promise<void> {
   if (data) {
     const label = document.getElementById('room-code-label');
     if (label) label.textContent = data.code;
+  }
+}
+
+function startCompass(): void {
+  compass = new CompassManager();
+  if (!compass.supported) return;
+
+  const activate = async (): Promise<void> => {
+    const ok = await compass!.enable();
+    if (ok) {
+      compass!.subscribe((heading) => renderer?.setHeading(heading));
+    }
+  };
+
+  if (compass.needsPermission) {
+    // iOS 13+: requestPermission() must come from a user gesture.
+    // We piggyback on the first touch — the user will tap the screen anyway.
+    document.addEventListener('touchstart', activate, { once: true, passive: true });
+    document.addEventListener('click',      activate, { once: true });
+  } else {
+    // Android / desktop: start immediately, no gesture required.
+    activate();
   }
 }
 
@@ -205,7 +230,6 @@ async function poll(): Promise<void> {
     .select('user_id, lat, lng, updated_at')
     .in('user_id', memberIds);
 
-  // avatar_url wird jetzt mitgeladen ← NEU
   const { data: users } = await supabase
     .from('users')
     .select('id, name, avatar_url')
@@ -229,9 +253,9 @@ async function poll(): Promise<void> {
     friends.push({
       id:        stableIdFromUserId(loc.user_id),
       name:      user.name,
-      avatarUrl: user.avatar_url ?? null,   // ← NEU: Profilbild weitergeben
+      avatarUrl: user.avatar_url ?? null,
       density,
-      bearing,
+      bearing,   // raw GPS bearing — heading offset applied live in renderer
       colorIdx,
       active: true,
     });
@@ -243,7 +267,9 @@ async function poll(): Promise<void> {
 async function leaveRoom(): Promise<void> {
   const roomId = getCurrentRoomId();
   const userId = getUserId();
-  if (watchId !== null)     navigator.geolocation.clearWatch(watchId);
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  compass?.disable();
+  compass = null;
   stopPollInterval();
   const { error: locationDeleteError } = await supabase.from('locations').delete().eq('user_id', userId);
   logSupabaseError('leave location delete', locationDeleteError);
@@ -265,7 +291,6 @@ async function leaveRoom(): Promise<void> {
 }
 
 function createDebugPanel(r: PulseRenderer): { panel: HTMLDivElement; trigger: HTMLButtonElement } {
-  // clean up previous mount
   document.querySelector('.pulse-debug-panel')?.remove();
   document.querySelector('.pulse-debug-trigger')?.remove();
   if (debugKeyHandler) {

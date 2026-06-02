@@ -52,10 +52,12 @@ export class PulseRenderer {
   private readonly uniformCache      = new Map<string, WebGLUniformLocation | null>();
   private readonly uniformProgramIds = new WeakMap<WebGLProgram, number>();
   private nextUniformProgramId = 0;
-  private width  = 1;
-  private height = 1;
-  private start  = 0;
-  private raf    = 0;
+  private width   = 1;
+  private height  = 1;
+  private start   = 0;
+  private raf     = 0;
+  /** Smoothed compass heading in degrees (0 = North). Set by MainScreen via setHeading(). */
+  private heading = 0;
 
   constructor(
     private readonly root: HTMLElement,
@@ -121,6 +123,13 @@ export class PulseRenderer {
   }
 
   getViewport(): ViewportSize { return { width: this.width, height: this.height }; }
+
+  /**
+   * Feed the current compass heading so orbs appear in the correct real-world direction.
+   * orbAngle = bearing(myGPS → friendGPS) − heading
+   * → a friend physically to your left appears on the left of the screen.
+   */
+  setHeading(heading: number): void { this.heading = heading; }
 
   private ul(program: WebGLProgram, name: string): WebGLUniformLocation | null {
     let programId = this.uniformProgramIds.get(program);
@@ -237,13 +246,16 @@ export class PulseRenderer {
   }
 
   private visualFriendPoint(friend: Friend, time: number): RenderPoint {
-    const target  = friendScreenPosition(friend.bearing, this.getViewport());
-    const current = this.smoothPosition(friend.id, target);
-    const float_  = this.friendFloat(friend.id, time, friend.density);
-    const meters  = proximityMeters(friend.density);
-    const pull    = softGravityPull(meters);
-    const user    = this.userPoint();
-    const floated = {
+    // Subtract compass heading so the orb angle is relative to where the user faces.
+    // heading=0 → no correction (or compass inactive).
+    const orbAngle = ((friend.bearing - this.heading) % 360 + 360) % 360;
+    const target   = friendScreenPosition(orbAngle, this.getViewport());
+    const current  = this.smoothPosition(friend.id, target);
+    const float_   = this.friendFloat(friend.id, time, friend.density);
+    const meters   = proximityMeters(friend.density);
+    const pull     = softGravityPull(meters);
+    const user     = this.userPoint();
+    const floated  = {
       x: current.x + float_.x,
       y: current.y + float_.y,
     };
