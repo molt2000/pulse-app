@@ -9,6 +9,7 @@ interface LabelParts {
   initials: HTMLDivElement;
   name: HTMLDivElement;
   meta: HTMLDivElement;
+  colorIdx: number;
 }
 
 // ── orb sizing ──────────────────────────────────────────────────────────────
@@ -106,7 +107,11 @@ export class PulseRenderer {
 
     for (const id of existingIds) {
       if (!newIds.has(id)) {
-        this.labels.get(id)?.root.remove();
+        const label = this.labels.get(id);
+        if (label) {
+          this.playExitAnimation(id, label.colorIdx);
+          label.root.remove();
+        }
         this.labels.delete(id);
         this.positions.delete(id);
         this.mergeLevels.delete(id);
@@ -401,7 +406,7 @@ export class PulseRenderer {
 
     root.append(initials, name, meta);
     this.overlay.appendChild(root);
-    this.labels.set(friend.id, { root, initials, name, meta });
+    this.labels.set(friend.id, { root, initials, name, meta, colorIdx: friend.colorIdx });
   }
 
   private patchLabel(friend: Friend): void {
@@ -505,6 +510,26 @@ export class PulseRenderer {
       x: Math.sin(time * 0.2  + id * 1.7)  * amount,
       y: Math.cos(time * 0.17 + id * 1.13) * amount * 0.72,
     };
+  }
+
+  private playExitAnimation(id: number, colorIdx: number): void {
+    const position = this.visualPositions.get(id);
+    if (!position) return;
+
+    const tone = toneFor(colorIdx);
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'pulse-orb-exit-wrapper';
+    wrapper.style.transform = `translate3d(${position.x}px, ${position.y}px, 0)`;
+
+    const particle = document.createElement('div');
+    particle.className = 'pulse-orb-exit';
+    particle.style.setProperty('--c', rgbCss(tone.core, 0.9));
+    particle.style.setProperty('--g', rgbCss(tone.glow, 0.65));
+
+    wrapper.appendChild(particle);
+    this.overlay.appendChild(wrapper);
+    particle.addEventListener('animationend', () => wrapper.remove(), { once: true });
   }
 
   private toWorld(point: RenderPoint): [number, number] {
@@ -713,6 +738,75 @@ function injectRendererStyles(): void {
         0 0 6px  rgba(0, 0, 0, 1),
         0 1px 3px rgba(0, 0, 0, 0.9);
       letter-spacing: 0.01em;
+    }
+
+    /* ── Friend exit animation ───────────────────────────────────────────── */
+    .pulse-orb-exit-wrapper {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .pulse-orb-exit {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      left: -22px;
+      top: -22px;
+      border-radius: 999px;
+      background: var(--c);
+      pointer-events: none;
+      animation: pulse-orb-exit 680ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    @keyframes pulse-orb-exit {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+        box-shadow: 0 0 0 0 var(--c), 0 0 18px 6px var(--g);
+        filter: brightness(1) blur(0px);
+      }
+      10% {
+        transform: scale(1.3);
+        opacity: 1;
+        box-shadow: 0 0 0 0 var(--c), 0 0 46px 20px var(--g);
+        filter: brightness(3.5) blur(0px);
+      }
+      28% {
+        transform: scale(0.88);
+        opacity: 0.95;
+        box-shadow:
+          -9px  -13px 0 3px var(--c),
+           13px  -9px 0 2px var(--c),
+          -11px  11px 0 2px var(--c),
+           9px   13px 0 3px var(--c),
+          0 0 10px 4px var(--g);
+        filter: brightness(1.6) blur(0.5px);
+      }
+      60% {
+        transform: scale(0.38);
+        opacity: 0.42;
+        box-shadow:
+          -22px -32px 0 0px var(--c),
+           32px -22px 0 -1px var(--c),
+          -28px  28px 0 -1px var(--c),
+           22px  32px 0 0px var(--c),
+          0 0 4px 2px var(--g);
+        filter: brightness(0.9) blur(2px);
+      }
+      100% {
+        transform: scale(0.04);
+        opacity: 0;
+        box-shadow:
+          -44px -62px 0 -5px rgba(255,255,255,0),
+           62px -44px 0 -5px rgba(255,255,255,0),
+          -54px  54px 0 -5px rgba(255,255,255,0),
+           44px  62px 0 -5px rgba(255,255,255,0),
+          0 0 0 0 rgba(255,255,255,0);
+        filter: brightness(0) blur(6px);
+      }
     }
   `;
   document.head.appendChild(style);
