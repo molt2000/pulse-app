@@ -1,5 +1,5 @@
 import { navigateTo } from '../main';
-import { getUserId, getCurrentRoomId, clearCurrentRoom } from '../auth';
+import { getUserId, getCurrentRoomId, clearCurrentRoom, getUserName, getAvatarUrl } from '../auth';
 import { supabase } from '../supabase';
 import { friends, resetDevFriends } from '../state';
 import { PulseRenderer } from '../visuals/renderer';
@@ -46,7 +46,7 @@ export function mountMainScreen(app: HTMLElement): void {
   if (import.meta.env.DEV) resetDevFriends();
 
   const pulseApp = document.getElementById('pulse-app')!;
-  renderer = new PulseRenderer(pulseApp, friends);
+  renderer = new PulseRenderer(pulseApp, friends, { name: getUserName(), avatarUrl: getAvatarUrl() || null });
   renderer.startRendering();
 
   const roomId = getCurrentRoomId();

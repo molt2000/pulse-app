@@ -62,6 +62,7 @@ export class PulseRenderer {
   constructor(
     private readonly root: HTMLElement,
     private readonly friends: Friend[],
+    private readonly userProfile: { name: string; avatarUrl?: string | null } = { name: '' },
   ) {
     injectRendererStyles();
 
@@ -369,7 +370,7 @@ export class PulseRenderer {
                     ?? this.visualFriendPoint(friend, time);
       const scale    = 0.96 + friend.density * 0.08 + Math.sin(time * 0.55 + friend.id) * 0.018;
       parts.root.style.transform = `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`;
-      parts.root.style.opacity   = String(Math.min(1, friend.density * 2));
+      parts.root.style.opacity   = '1';
       parts.root.style.zIndex    = String(Math.round(friend.density * 10));
       const textOpacity = Math.max(0, Math.min(1, (friend.density - 0.15) / 0.25));
       parts.name.style.opacity = String(textOpacity);
@@ -449,8 +450,39 @@ export class PulseRenderer {
 
   private createStaticUi(): void {
     const you = document.createElement('div');
-    you.className = 'pulse-you';
-    you.innerHTML = `YOU`;
+    you.className = 'pulse-you-label';
+
+    const initials = document.createElement('div');
+    initials.className = 'pulse-friend-initials';
+    initials.style.borderColor = rgbCss(theme.youTone.rim, 0.5);
+    initials.style.boxShadow = `0 0 24px ${rgbCss(theme.youTone.glow, 0.35)}`;
+
+    const userName   = this.userProfile.name;
+    const avatarUrl  = this.userProfile.avatarUrl ?? null;
+
+    if (avatarUrl) {
+      initials.style.background = 'transparent';
+      initials.style.overflow   = 'hidden';
+      initials.style.padding    = '0';
+      const img = document.createElement('img');
+      img.src = avatarUrl;
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;';
+      img.onerror = () => {
+        img.remove();
+        initials.style.background = 'rgba(255,255,255,0.15)';
+        initials.textContent = initialsFor(userName || 'Y');
+      };
+      initials.appendChild(img);
+    } else {
+      initials.style.background = 'rgba(255,255,255,0.15)';
+      initials.textContent = initialsFor(userName || 'Y');
+    }
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'pulse-you-name';
+    nameEl.textContent = userName || 'you';
+
+    you.append(initials, nameEl);
     this.overlay.append(you);
   }
 
@@ -468,7 +500,7 @@ export class PulseRenderer {
   }
 
   private friendFloat(id: number, time: number, density: number): RenderPoint {
-    const amount = 4 + density * 7;
+    const amount = 4 + (1 - density) * 7;
     return {
       x: Math.sin(time * 0.2  + id * 1.7)  * amount,
       y: Math.cos(time * 0.17 + id * 1.13) * amount * 0.72,
@@ -580,15 +612,30 @@ function injectRendererStyles(): void {
       letter-spacing: .4em;
       opacity: .4;
     }
-    .pulse-you {
+    .pulse-you-label {
       position: fixed;
       left: 50%;
       top: 50%;
-      transform: translate(-50%, -50%);
-      display: grid;
-      place-items: center;
-      gap: 3px;
+      width: 0;
+      height: 0;
       text-align: center;
+      pointer-events: none;
+      user-select: none;
+    }
+    .pulse-you-name {
+      position: absolute;
+      left: 0;
+      top: 32px;
+      transform: translateX(-50%);
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      color: rgba(255, 255, 255, 0.65);
+      text-shadow:
+        0 0 8px  rgba(0, 0, 0, 1),
+        0 1px 3px rgba(0, 0, 0, 0.9),
+        0 0 16px rgba(0, 0, 0, 0.7);
+      letter-spacing: 0.04em;
     }
 
     /* ── Friend labels ───────────────────────────────────────────────────── */
