@@ -20,8 +20,8 @@ const FRIEND_RADIUS = {
 };
 
 // ── merge config ─────────────────────────────────────────────────────────────
-const MERGE_DISTANCE_METERS = 100;
-const MERGE_STRENGTH        = 0.95;
+const MERGE_DISTANCE_METERS = 30;
+const MERGE_STRENGTH        = 0.35;
 const MERGE_SMOOTHNESS      = 28;
 const MERGE_ANIMATION_EASE  = 0.025;
 const MIN_MERGE_SEPARATION  = { mobile: 14, desktop: 18 };
