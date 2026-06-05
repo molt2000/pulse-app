@@ -94,7 +94,7 @@ export class PresenceService {
 
   private startPoll(): void {
     if (this.pollInterval) return;
-    this.pollInterval = setInterval(() => void this.poll(), 10000);
+    this.pollInterval = setInterval(() => void this.poll(), 3000);
   }
 
   private stopPoll(): void {
@@ -121,17 +121,12 @@ export class PresenceService {
       return;
     }
 
-    const memberIds = members.map((m: any) => m.user_id);
+    const memberIds = members.map((m: { user_id: string }) => m.user_id);
 
     const { data: locs } = await supabase
       .from('locations')
-      .select('user_id, lat, lng, updated_at')
+      .select('user_id, lat, lng, updated_at, users(name, avatar_url)')
       .in('user_id', memberIds);
-
-    const { data: users } = await supabase
-      .from('users')
-      .select('id, name, avatar_url')
-      .in('id', memberIds);
 
     const myLat = this.lat!;
     const myLng = this.lng!;
@@ -142,7 +137,7 @@ export class PresenceService {
       const lastSeen = new Date(loc.updated_at).getTime();
       if (now - lastSeen > 30000) return;
 
-      const user = users?.find((u: any) => u.id === loc.user_id);
+      const user = loc.users;
       if (!user) return;
 
       const dist     = distanceMeters(myLat, myLng, loc.lat, loc.lng);
