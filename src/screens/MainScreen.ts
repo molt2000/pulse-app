@@ -3,8 +3,8 @@ import { getUserId, getCurrentRoomId, clearCurrentRoom, getUserName, getAvatarUr
 import { supabase } from '../supabase';
 import { friends, resetDevFriends } from '../state';
 import { PulseRenderer } from '../visuals/renderer';
-import { distanceMeters, densityFromDistance, bearingDegrees, colorIdxFromUserId, stableIdFromUserId } from '../proximity';
-import { CompassManager } from '../hooks/useCompass';
+import { distanceMeters, densityFromDistance, bearingDegrees, colorIdxFromUserId, stableIdFromUserId } from '../core/geo';
+import { CompassManager } from '../core/compass';
 
 let renderer:        PulseRenderer | null = null;
 let pollInterval:    ReturnType<typeof setInterval> | null = null;
