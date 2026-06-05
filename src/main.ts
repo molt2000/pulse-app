@@ -1,4 +1,4 @@
-import { initAuth, isProfileComplete, getCurrentRoomId } from './auth';
+import { initAuth, isProfileComplete, getCurrentRoomId } from './services/auth';
 
 export type Screen = 'permission' | 'lobby' | 'main';
 

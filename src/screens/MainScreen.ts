@@ -1,16 +1,13 @@
 import { navigateTo } from '../main';
-import { getUserId, getCurrentRoomId, clearCurrentRoom, getUserName, getAvatarUrl } from '../auth';
-import { supabase } from '../supabase';
+import { getUserId, getCurrentRoomId, clearCurrentRoom, getUserName, getAvatarUrl } from '../services/auth';
+import { supabase } from '../services/supabase';
 import { friends, resetDevFriends } from '../state';
 import { PulseRenderer } from '../visuals/renderer';
-import { distanceMeters, densityFromDistance, bearingDegrees, colorIdxFromUserId, stableIdFromUserId } from '../core/geo';
 import { CompassManager } from '../core/compass';
+import { PresenceService } from '../services/presence';
 
 let renderer:        PulseRenderer | null = null;
-let pollInterval:    ReturnType<typeof setInterval> | null = null;
-let watchId:         number | null = null;
-let myLat:           number | null = null;
-let myLng:           number | null = null;
+let presence:        PresenceService | null = null;
 let isGhost = false;
 let debugKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 let compass: CompassManager | null = null;
@@ -67,10 +64,28 @@ export function mountMainScreen(app: HTMLElement): void {
     });
   });
 
-  startTracking();
+  const gpsErrorHandler = (): void => {
+    const gpsErr = document.getElementById('gps-error');
+    if (gpsErr) {
+      gpsErr.style.display = 'block';
+      setTimeout(() => { gpsErr.style.display = 'none'; }, 5000);
+    }
+  };
+
+  presence = new PresenceService(
+    roomId,
+    getUserId(),
+    (newFriends) => {
+      friends.length = 0;
+      friends.push(...newFriends);
+      renderer?.refreshFriendUi();
+      const waiting = document.getElementById('waiting-msg');
+      if (waiting) waiting.style.display = newFriends.length === 0 ? 'block' : 'none';
+    },
+    gpsErrorHandler,
+  );
+  presence.start();
   startCompass();
-  startPollInterval();
-  poll();
 
   document.getElementById('leave-btn')!.addEventListener('click', async () => {
     const confirmed = confirm('leave room?');
@@ -82,24 +97,11 @@ export function mountMainScreen(app: HTMLElement): void {
     isGhost = !isGhost;
     const btn = document.getElementById('ghost-btn')!;
     btn.style.opacity = isGhost ? '1' : '0.35';
-    const { error: ghostError } = await supabase
-      .from('room_members')
-      .update({ is_ghost: isGhost })
-      .eq('room_id', roomId)
-      .eq('user_id', getUserId());
-    logSupabaseError('ghost update', ghostError);
-
-    if (isGhost) {
-      const { error: locationDeleteError } = await supabase
-        .from('locations')
-        .delete()
-        .eq('user_id', getUserId());
-      logSupabaseError('ghost location delete', locationDeleteError);
-    }
+    await presence?.setGhost(isGhost);
   });
 
   if (import.meta.env.DEV) {
-    (window as any).__pulse = { friends, renderer, poll };
+    (window as any).__pulse = { friends, renderer, presence };
     console.info('[Pulse DEV] use window.__pulse to inspect');
     const debugPanel = createDebugPanel(renderer);
     document.body.appendChild(debugPanel.panel);
@@ -130,136 +132,13 @@ function startCompass(): void {
   });
 }
 
-function startTracking(): void {
-  if (!navigator.geolocation) return;
-  watchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      myLat = pos.coords.latitude;
-      myLng = pos.coords.longitude;
-      if (!isGhost) pushLocation();
-    },
-    (err) => {
-      console.warn('[Pulse] GPS error:', err);
-      const gpsErr = document.getElementById('gps-error');
-      if (gpsErr) gpsErr.style.display = 'block';
-      setTimeout(() => {
-        if (gpsErr) gpsErr.style.display = 'none';
-      }, 5000);
-    },
-    { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
-  );
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      poll();
-      startPollInterval();
-    } else {
-      stopPollInterval();
-    }
-  });
-}
-
-function startPollInterval(): void {
-  if (pollInterval) return;
-  pollInterval = setInterval(() => poll(), 10000);
-}
-
-function stopPollInterval(): void {
-  if (pollInterval) {
-    clearInterval(pollInterval);
-    pollInterval = null;
-  }
-}
-
-async function pushLocation(): Promise<void> {
-  if (myLat === null || myLng === null || isGhost) return;
-  const roomId = getCurrentRoomId();
-  const { error: locError } = await supabase.from('locations').upsert({
-    user_id:    getUserId(),
-    room_id:    roomId,
-    lat:        myLat,
-    lng:        myLng,
-    updated_at: new Date().toISOString(),
-  });
-  logSupabaseError('location upsert', locError);
-
-  const { error: roomError } = await supabase
-    .from('rooms')
-    .update({ last_activity: new Date().toISOString() })
-    .eq('id', roomId);
-  logSupabaseError('room activity update', roomError);
-}
-
-async function poll(): Promise<void> {
-  if (import.meta.env.DEV) return;
-  if (myLat === null || myLng === null) return;
-  const roomId = getCurrentRoomId();
-  const myId   = getUserId();
-  await pushLocation();
-
-  const { data: members } = await supabase
-    .from('room_members')
-    .select('user_id, is_ghost')
-    .eq('room_id', roomId)
-    .eq('is_ghost', false)
-    .neq('user_id', myId);
-
-  const waiting = document.getElementById('waiting-msg');
-  if (!members || members.length === 0) {
-    friends.length = 0;
-    renderer?.refreshFriendUi();
-    if (waiting) waiting.style.display = 'block';
-    return;
-  }
-  if (waiting) waiting.style.display = 'none';
-
-  const memberIds = members.map((m: any) => m.user_id);
-
-  const { data: locs } = await supabase
-    .from('locations')
-    .select('user_id, lat, lng, updated_at')
-    .in('user_id', memberIds);
-
-  const { data: users } = await supabase
-    .from('users')
-    .select('id, name, avatar_url')
-    .in('id', memberIds);
-
-  friends.length = 0;
-  const now = Date.now();
-
-  locs?.forEach((loc: any) => {
-    const lastSeen = new Date(loc.updated_at).getTime();
-    if (now - lastSeen > 30000) return;
-
-    const user = users?.find((u: any) => u.id === loc.user_id);
-    if (!user) return;
-
-    const dist     = distanceMeters(myLat!, myLng!, loc.lat, loc.lng);
-    const density  = densityFromDistance(dist);
-    const bearing  = bearingDegrees(myLat!, myLng!, loc.lat, loc.lng);
-    const colorIdx = colorIdxFromUserId(loc.user_id);
-
-    friends.push({
-      id:        stableIdFromUserId(loc.user_id),
-      name:      user.name,
-      avatarUrl: user.avatar_url ?? null,
-      density,
-      bearing,   // raw GPS bearing — heading offset applied live in renderer
-      colorIdx,
-      active: true,
-    });
-  });
-
-  renderer?.refreshFriendUi();
-}
-
 async function leaveRoom(): Promise<void> {
   const roomId = getCurrentRoomId();
   const userId = getUserId();
-  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  presence?.stop();
+  presence = null;
   compass?.disable();
   compass = null;
-  stopPollInterval();
   const { error: locationDeleteError } = await supabase.from('locations').delete().eq('user_id', userId);
   logSupabaseError('leave location delete', locationDeleteError);
 

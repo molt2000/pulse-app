@@ -1,6 +1,6 @@
 import { navigateTo } from '../main';
-import { getUserId, getUserName, setUserName, setAvatarUrl, getAvatarUrl, setCurrentRoomId, isProfileComplete } from '../auth';
-import { supabase } from '../supabase';
+import { getUserId, getUserName, setUserName, setAvatarUrl, getAvatarUrl, setCurrentRoomId, isProfileComplete } from '../services/auth';
+import { supabase } from '../services/supabase';
 import { LobbyBackground } from '../visuals/lobbyBackground';
 
 let bgRenderer: LobbyBackground | null = null;
