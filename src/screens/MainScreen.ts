@@ -1,7 +1,7 @@
 import { navigateTo } from '../main';
 import { getUserId, getCurrentRoomId, clearCurrentRoom, getUserName, getAvatarUrl } from '../services/auth';
 import { supabase } from '../services/supabase';
-import { friends, resetDevFriends } from '../state';
+import { friends, resetDevFriends } from '../devMode';
 import { PulseRenderer } from '../visuals/renderer';
 import { CompassManager } from '../core/compass';
 import { PresenceService } from '../services/presence';

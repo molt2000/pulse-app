@@ -1,4 +1,4 @@
-import { Friend, ViewportSize, friendDistanceLabel, friendScreenPosition, initialsFor } from '../state';
+import { Friend, ViewportSize, friendDistanceLabel, friendScreenPosition, initialsFor } from '../user';
 import { BACKGROUND_SHADER, GRAVITY_FIELD_SHADER, MERGED_ORBS_SHADER, VERTEX_SHADER } from './shaders';
 import { rgbCss, theme, toneFor } from './theme';
 // Note: gravityField.ts is NOT needed – gravity field logic is fully inlined below

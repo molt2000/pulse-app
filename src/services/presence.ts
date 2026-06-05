@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { distanceMeters, densityFromDistance, bearingDegrees, colorIdxFromUserId, stableIdFromUserId } from '../core/geo';
-import type { Friend } from '../state';
+import type { Friend } from '../user';
 
 export class PresenceService {
   private watchId:      number | null = null;
