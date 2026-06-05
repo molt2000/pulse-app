@@ -2,7 +2,7 @@ import { navigateTo } from '../main';
 import { getUserId, getCurrentRoomId, clearCurrentRoom, getUserName, getAvatarUrl } from '../services/auth';
 import { supabase } from '../services/supabase';
 import { friends, resetDevFriends } from '../devMode';
-import { PulseRenderer } from '../visuals/renderer';
+import { PulseRenderer } from '../skins/orb/index';
 import { CompassManager } from '../core/compass';
 import { PresenceService } from '../services/presence';
 

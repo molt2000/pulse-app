@@ -1,7 +1,13 @@
-import { Friend, ViewportSize, friendDistanceLabel, friendScreenPosition, initialsFor } from '../user';
+import type { Friend, ViewportSize } from '../../user';
+import { friendScreenPosition, softGravityPull, proximityMeters, smoothstep } from './geometry';
+import { initialsFor, friendDistanceLabel } from './labels';
 import { BACKGROUND_SHADER, GRAVITY_FIELD_SHADER, MERGED_ORBS_SHADER, VERTEX_SHADER } from './shaders';
 import { rgbCss, theme, toneFor } from './theme';
-// Note: gravityField.ts is NOT needed – gravity field logic is fully inlined below
+import {
+  USER_RADIUS, FRIEND_RADIUS,
+  MERGE_DISTANCE_METERS, MERGE_STRENGTH, MERGE_SMOOTHNESS,
+  MERGE_ANIMATION_EASE, MIN_MERGE_SEPARATION, MAX_MERGED_FRIENDS, GRAVITY_MAX_ORBS,
+} from './orbs';
 
 interface RenderPoint { x: number; y: number; }
 interface LabelParts {
@@ -11,24 +17,6 @@ interface LabelParts {
   meta: HTMLDivElement;
   colorIdx: number;
 }
-
-// ── orb sizing ──────────────────────────────────────────────────────────────
-const USER_RADIUS = { mobile: 0.062, desktop: 0.09 };
-const FRIEND_RADIUS = {
-  mobileBase: 0.018,  mobileDensity: 0.052,
-  desktopBase: 0.026, desktopDensity: 0.076,
-};
-
-// ── merge config ─────────────────────────────────────────────────────────────
-const MERGE_DISTANCE_METERS = 30;
-const MERGE_STRENGTH        = 0.35;
-const MERGE_SMOOTHNESS      = 28;
-const MERGE_ANIMATION_EASE  = 0.025;
-const MIN_MERGE_SEPARATION  = { mobile: 14, desktop: 18 };
-const MAX_MERGED_FRIENDS    = 10;
-
-// ── gravity field config ─────────────────────────────────────────────────────
-const GRAVITY_MAX_ORBS = 11; // 1 user + 10 friends
 
 interface ActiveFriendRender {
   friend: Friend;
@@ -570,26 +558,6 @@ export class PulseRenderer {
  * more steeply below 100 m. The merge effect (< ~100 m) is handled
  * separately in applyUserMerge(), so we cap this pull to not interfere.
  */
-function softGravityPull(meters: number): number {
-  if (meters >= 150) return 0;
-  if (meters <= 0)   return 0.28;
-  if (meters > 100) {
-    const t = 1 - (meters - 100) / 50;
-    return smoothstep(t) * 0.08;
-  }
-  const t = 1 - meters / 100;
-  return 0.08 + smoothstep(t) * 0.20;
-}
-
-function proximityMeters(density: number): number {
-  return Math.round((1 - Math.max(0, Math.min(1, density))) * 500);
-}
-
-function smoothstep(value: number): number {
-  const x = Math.max(0, Math.min(1, value));
-  return x * x * (3 - 2 * x);
-}
-
 function injectRendererStyles(): void {
   if (document.getElementById('pulse-renderer-styles')) return;
   const style = document.createElement('style');
