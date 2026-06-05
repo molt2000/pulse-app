@@ -278,8 +278,8 @@ export class PulseRenderer {
     const user        = this.userPoint();
     const meters      = proximityMeters(friend.density);
     const targetLevel = this.targetMergeLevel(meters);
-    const stored      = this.mergeLevels.get(friend.id);
-    const previous    = stored ?? targetLevel;
+    // Cold start: a brand-new orb begins at its target level (no merge-in animation on first frame).
+    const previous    = this.mergeLevels.get(friend.id) ?? targetLevel;
     const ease        = MERGE_ANIMATION_EASE + targetLevel * 0.04;
     const level       = previous + (targetLevel - previous) * ease;
     this.mergeLevels.set(friend.id, level);
@@ -394,7 +394,7 @@ export class PulseRenderer {
     initials.style.borderColor = rgbCss(tone.rim, 0.5);
     initials.style.boxShadow = `0 0 24px ${rgbCss(tone.glow, 0.35)}`;
 
-    this.applyAvatarOrInitials(initials, friend);
+    this.applyAvatarOrInitials(initials, friend.name, friend.avatarUrl);
 
     const name = document.createElement('div');
     name.className = 'pulse-friend-name';
@@ -420,37 +420,41 @@ export class PulseRenderer {
     const newUrl = friend.avatarUrl ?? '';
     if (currentUrl !== newUrl) {
       parts.initials.innerHTML = '';
-      this.applyAvatarOrInitials(parts.initials, friend);
+      this.applyAvatarOrInitials(parts.initials, friend.name, friend.avatarUrl);
     } else if (!newUrl || parts.initials.dataset.avatarFailed === 'true') {
       parts.initials.textContent = initialsFor(friend.name);
     }
   }
 
-  private applyAvatarOrInitials(container: HTMLDivElement, friend: Friend): void {
-    container.dataset.avatarUrl = friend.avatarUrl ?? '';
+  private applyAvatarOrInitials(container: HTMLDivElement, name: string, avatarUrl?: string | null): void {
+    container.dataset.avatarUrl = avatarUrl ?? '';
     container.dataset.avatarFailed = '';
 
-    if (friend.avatarUrl) {
-      container.style.background = 'transparent';
-      container.style.overflow = 'hidden';
-      container.style.padding = '0';
-
-      const img = document.createElement('img');
-      img.src = friend.avatarUrl;
-      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;';
-      img.onerror = () => {
-        img.remove();
-        container.dataset.avatarFailed = 'true';
-        container.style.background = 'rgba(255,255,255,0.15)';
-        container.textContent = initialsFor(friend.name);
-      };
-      container.appendChild(img);
-    } else {
+    const showInitials = (): void => {
       container.style.background = 'rgba(255,255,255,0.15)';
       container.style.overflow = 'hidden';
       container.style.padding = '';
-      container.textContent = initialsFor(friend.name);
+      container.textContent = initialsFor(name);
+    };
+
+    if (!avatarUrl) {
+      showInitials();
+      return;
     }
+
+    container.style.background = 'transparent';
+    container.style.overflow = 'hidden';
+    container.style.padding = '0';
+
+    const img = document.createElement('img');
+    img.src = avatarUrl;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;';
+    img.onerror = () => {
+      img.remove();
+      container.dataset.avatarFailed = 'true';
+      showInitials();
+    };
+    container.appendChild(img);
   }
 
   private createStaticUi(): void {
@@ -462,26 +466,8 @@ export class PulseRenderer {
     initials.style.borderColor = rgbCss(theme.youTone.rim, 0.5);
     initials.style.boxShadow = `0 0 24px ${rgbCss(theme.youTone.glow, 0.35)}`;
 
-    const userName   = this.userProfile.name;
-    const avatarUrl  = this.userProfile.avatarUrl ?? null;
-
-    if (avatarUrl) {
-      initials.style.background = 'transparent';
-      initials.style.overflow   = 'hidden';
-      initials.style.padding    = '0';
-      const img = document.createElement('img');
-      img.src = avatarUrl;
-      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;';
-      img.onerror = () => {
-        img.remove();
-        initials.style.background = 'rgba(255,255,255,0.15)';
-        initials.textContent = initialsFor(userName || 'Y');
-      };
-      initials.appendChild(img);
-    } else {
-      initials.style.background = 'rgba(255,255,255,0.15)';
-      initials.textContent = initialsFor(userName || 'Y');
-    }
+    const userName = this.userProfile.name;
+    this.applyAvatarOrInitials(initials, userName || 'Y', this.userProfile.avatarUrl);
 
     const nameEl = document.createElement('div');
     nameEl.className = 'pulse-you-name';

@@ -46,7 +46,7 @@ export function mountMainScreen(app: HTMLElement): void {
   if (import.meta.env.DEV) resetDevFriends();
 
   const pulseApp = document.getElementById('pulse-app')!;
-  renderer = new PulseRenderer(pulseApp, friends, { name: getUserName(), avatarUrl: getAvatarUrl() || null });
+  renderer = new PulseRenderer(pulseApp, friends, { name: getUserName(), avatarUrl: getAvatarUrl() });
   renderer.startRendering();
 
   const roomId = getCurrentRoomId();
