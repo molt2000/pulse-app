@@ -1,4 +1,4 @@
-import { navigateTo } from '../main';
+import { navigateTo } from '../app';
 import { getUserId, getUserName, setUserName, setAvatarUrl, getAvatarUrl, setCurrentRoomId, isProfileComplete } from '../services/auth';
 import { supabase } from '../services/supabase';
 import { LobbyBackground } from '../skins/orb/background';

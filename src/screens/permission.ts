@@ -1,4 +1,4 @@
-import { navigateTo } from '../main';
+import { navigateTo } from '../app';
 
 export function mountPermissionScreen(app: HTMLElement): void {
   app.innerHTML = `

@@ -1,4 +1,4 @@
-import { navigateTo } from '../main';
+import { navigateTo } from '../app';
 import { getUserId, getCurrentRoomId, clearCurrentRoom, getUserName, getAvatarUrl } from '../services/auth';
 import { supabase } from '../services/supabase';
 import { friends, resetDevFriends } from '../devMode';

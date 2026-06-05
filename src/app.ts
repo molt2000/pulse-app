@@ -7,13 +7,13 @@ export async function navigateTo(screen: Screen): Promise<void> {
   app.innerHTML = '';
 
   if (screen === 'permission') {
-    const { mountPermissionScreen } = await import('./screens/PermissionScreen');
+    const { mountPermissionScreen } = await import('./screens/permission');
     mountPermissionScreen(app);
   } else if (screen === 'lobby') {
-    const { mountLobbyScreen } = await import('./screens/LobbyScreen');
+    const { mountLobbyScreen } = await import('./screens/lobby');
     mountLobbyScreen(app);
   } else if (screen === 'main') {
-    const { mountMainScreen } = await import('./screens/MainScreen');
+    const { mountMainScreen } = await import('./screens/main');
     mountMainScreen(app);
   }
 }
