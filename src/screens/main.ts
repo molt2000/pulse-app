@@ -96,7 +96,8 @@ export function mountMainScreen(app: HTMLElement): void {
   document.getElementById('ghost-btn')!.addEventListener('click', async () => {
     isGhost = !isGhost;
     const btn = document.getElementById('ghost-btn')!;
-    btn.style.opacity = isGhost ? '1' : '0.35';
+    btn.style.opacity = isGhost ? '0.35' : '1';
+    btn.style.background = isGhost ? 'rgba(255,255,255,0.12)' : 'transparent';
     await presence?.setGhost(isGhost);
   });
 
@@ -328,15 +329,16 @@ function injectStyles(): void {
     #pulse-app  { position: fixed; inset: 0; }
     .main-ui {
       position: fixed; top: 0; left: 0; right: 0; z-index: 10;
-      display: flex; align-items: center; justify-content: space-between;
+      display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
       padding: 18px 20px; pointer-events: none;
       height: 70px;
     }
     .main-back-btn {
+      justify-self: start;
       pointer-events: all;
       background: transparent;
       border: 1px solid rgba(255,255,255,0.12);
-      color: rgba(255,255,255,0.45);
+      color: rgba(255,255,255,0.75);
       font-size: 10px; letter-spacing: .15em;
       padding: 8px 14px; border-radius: 999px;
       cursor: pointer; font-family: Inter, system-ui, sans-serif;
@@ -344,10 +346,8 @@ function injectStyles(): void {
     }
     .main-back-btn:hover { opacity: 0.7; }
     .main-room-code-wrap {
-      position: absolute; left: 50%; transform: translateX(-50%);
       display: flex; flex-direction: column; align-items: center; gap: 4px;
       pointer-events: all; cursor: pointer;
-      top: 14px;
     }
     .main-room-label {
       font-size: 9px; letter-spacing: .22em; text-transform: uppercase;
@@ -376,20 +376,24 @@ function injectStyles(): void {
       border-color: rgba(255,255,255,0.4);
     }
     .main-ghost-btn {
+      justify-self: end;
       pointer-events: all;
       background: transparent;
       border: 1px solid rgba(255,255,255,0.12);
       color: white; font-size: 14px;
       width: 34px; height: 34px; border-radius: 999px;
       cursor: pointer; display: grid; place-items: center;
-      opacity: 0.35; transition: opacity 200ms ease; backdrop-filter: blur(12px);
+      opacity: 1; transition: opacity 200ms ease, background 200ms ease; backdrop-filter: blur(12px);
     }
     .main-ghost-btn:hover { opacity: 0.7; }
     .main-waiting {
       position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
-      font-size: 11px; opacity: 0.25; letter-spacing: 0.08em;
-      font-family: Inter, system-ui, sans-serif; color: white;
+      font-size: 12px; letter-spacing: 0.1em;
+      font-family: Inter, system-ui, sans-serif; color: rgba(255,255,255,0.7);
       white-space: nowrap; z-index: 10;
+      background: rgba(0,0,0,0.35); backdrop-filter: blur(8px);
+      padding: 8px 16px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
     }
     .main-gps-error {
       position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%);
